@@ -111,6 +111,56 @@ const RequestList = () => {
 const Dashboard = () => {
     const { user, signOut } = useAuth();
     const [activeView, setActiveView] = useState('overview'); // 'overview' | 'settings'
+    const [stats, setStats] = useState({ totalBookings: 0, activeClients: 0 });
+    const [activity, setActivity] = useState([]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const fetchData = async () => {
+            // 1. Total Bookings
+            const { count: bookingCount } = await supabase
+                .from('bookings')
+                .select('*', { count: 'exact', head: true });
+
+            // 2. Active Clients
+            const { count: clientCount } = await supabase
+                .from('customers')
+                .select('*', { count: 'exact', head: true });
+
+            setStats({
+                totalBookings: bookingCount || 0,
+                activeClients: clientCount || 0
+            });
+
+            // 3. Recent Activity
+            const { data: recentBookings } = await supabase
+                .from('bookings')
+                .select('*, customers(name)')
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+            if (recentBookings) {
+                setActivity(recentBookings.map(b => ({
+                    title: b.status === 'pending' ? 'New Booking Request' : `Booking ${b.status}`,
+                    desc: `${b.customer_name || 'Someone'} requested for ${new Date(b.start_time).toLocaleDateString()}`,
+                    time: new Date(b.created_at).toLocaleTimeString(),
+                    icon: Calendar,
+                    color: b.status === 'approved' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                })));
+            }
+        };
+
+        fetchData();
+
+        // Realtime refresh
+        const channel = supabase
+            .channel('dashboard-updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, fetchData)
+            .subscribe();
+
+        return () => supabase.removeChannel(channel);
+    }, [user]);
 
     return (
         <div className="space-y-8">
@@ -148,11 +198,10 @@ const Dashboard = () => {
             ) : (
                 <>
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {[
-                            { label: 'Total Bookings', value: '124', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
-                            { label: 'Active Clients', value: '45', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
-                            { label: 'Revenue (Est.)', value: 'R 12,450', icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50' },
+                            { label: 'Total Bookings', value: stats.totalBookings, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+                            { label: 'Active Clients', value: stats.activeClients, icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
                         ].map((stat, index) => (
                             <div key={index} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between">
                                 <div>
@@ -166,58 +215,61 @@ const Dashboard = () => {
                         ))}
                     </div>
 
-                    {/* Test Integration Widget & Chat Simulator Grid */}
+                    {/* Test & Link Generator Grid */}
                     <div className="grid lg:grid-cols-2 gap-6">
-                        {/* Existing Test Widget */}
+                        {/* WhatsApp Link Generator (New) */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-fit">
-                            <h2 className="text-lg font-bold text-secondary-900 mb-4">Test WhatsApp Integration 🔌</h2>
+                            <h2 className="text-lg font-bold text-secondary-900 mb-4">📢 Get Your Booking Link</h2>
+                            <p className="text-sm text-secondary-500 mb-4">Share this link with customers so they can book you directly on WhatsApp.</p>
+
                             <div className="space-y-4">
-                                <div className="max-w-xs">
-                                    <label className="block text-sm font-medium text-secondary-600 mb-1">WhatsApp Number</label>
+                                <div>
+                                    <label className="block text-sm font-medium text-secondary-600 mb-1">Link Message (Trigger)</label>
                                     <input
                                         type="text"
-                                        placeholder="+27..."
-                                        id="test-phone"
-                                        className="w-full h-10 px-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        defaultValue="join"
+                                        className="w-full h-10 px-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-gray-50 text-gray-500"
+                                        readOnly
                                     />
+                                    <p className="text-xs text-gray-400 mt-1">Users sent this keyword to start the bot.</p>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={async () => {
-                                            const phone = document.getElementById('test-phone').value;
-                                            if (!phone) return alert('Please enter a phone number!');
 
-                                            try {
-                                                const res = await fetch(`${API_URL}/api/send-whatsapp`, {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ to: phone, body: 'Hello from HeyKaelo! 👋 This is your test message.' })
-                                                });
-                                                const data = await res.json();
-                                                if (data.success) alert('Message sent! Check your WhatsApp.');
-                                                else alert('Error: ' + JSON.stringify(data));
-                                            } catch (e) {
-                                                alert('Connection Error: Is the backend running?');
-                                            }
-                                        }}
-                                        className="h-10 px-6 rounded-lg bg-primary-500 text-white font-medium hover:bg-primary-600 transition-colors w-full"
-                                    >
-                                        Send Test Message
-                                    </button>
+                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 break-allfont-mono text-sm text-gray-600">
+                                    https://wa.me/14155238886?text=join
                                 </div>
-                                <p className="text-xs text-secondary-400">*Connects to Sandbox: +14155238886</p>
+
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText("https://wa.me/14155238886?text=join");
+                                        alert("Link copied to clipboard! 📋");
+                                    }}
+                                    className="h-10 px-6 rounded-lg bg-secondary-900 text-white font-medium hover:bg-secondary-800 transition-colors w-full flex items-center justify-center gap-2"
+                                >
+                                    <Send className="w-4 h-4" /> Copy Link
+                                </button>
                             </div>
                         </div>
 
-                        {/* Chat Simulator */}
-                        <ChatSimulator />
+                        {/* Interactive AI Simulator (New) */}
+                        <div className="h-full">
+                            <ChatSimulator />
+                        </div>
                     </div>
 
                     {/* Pending Booking Requests (New) */}
                     <div className="bg-orange-50 rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
                         <div className="p-6 border-b border-orange-100 flex justify-between items-center">
                             <h2 className="text-lg font-bold text-orange-900">Pending Requests ⏳</h2>
-                            <span className="bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 rounded-full">Action Required</span>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="p-1 text-orange-600 hover:bg-orange-100 rounded-full transition-colors"
+                                    title="Refresh List"
+                                >
+                                    <TrendingUp className="w-4 h-4 rotate-180" />
+                                </button>
+                                <span className="bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 rounded-full">Action Required</span>
+                            </div>
                         </div>
                         <div className="divide-y divide-orange-100">
                             <RequestList />
@@ -231,12 +283,7 @@ const Dashboard = () => {
                             <button className="text-sm font-medium text-primary-600 hover:text-primary-700">View All</button>
                         </div>
                         <div className="divide-y divide-gray-50">
-                            {[
-                                { title: 'New Booking', desc: 'Sarah J. booked a Haircut for tomorrow', time: '2 mins ago', icon: Calendar, color: 'bg-blue-100 text-blue-600' },
-                                { title: 'Reminder Sent', desc: 'WhatsApp reminder sent to Mike T.', time: '15 mins ago', icon: CheckCircle, color: 'bg-green-100 text-green-600' },
-                                { title: 'New Client', desc: 'Emma W. was added to your client list', time: '1 hour ago', icon: Users, color: 'bg-purple-100 text-purple-600' },
-                                { title: 'Booking Cancelled', desc: 'John D. cancelled his appointment', time: '3 hours ago', icon: Clock, color: 'bg-red-100 text-red-600' },
-                            ].map((item, index) => (
+                            {activity.length > 0 ? activity.map((item, index) => (
                                 <div key={index} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${item.color}`}>
                                         <item.icon className="w-5 h-5" />
@@ -247,7 +294,9 @@ const Dashboard = () => {
                                     </div>
                                     <span className="text-xs text-secondary-400 whitespace-nowrap">{item.time}</span>
                                 </div>
-                            ))}
+                            )) : (
+                                <div className="p-8 text-center text-gray-400 italic">No recent activity.</div>
+                            )}
                         </div>
                     </div>
                 </>

@@ -80,14 +80,24 @@ const ProfileSettings = () => {
     const handleSaveProfile = async () => {
         setSaving(true);
         try {
+            // Sanitize: Convert empty strings to null to avoid unique constraint violation on ""
+            const updates = {
+                ...profile,
+                slug: profile.slug && profile.slug.trim() !== '' ? profile.slug.toLowerCase().trim() : null,
+                updated_at: new Date(),
+            };
+
             const { error } = await supabase
                 .from('profiles')
-                .upsert({
-                    id: user.id,
-                    ...profile,
-                    ...profile
-                });
-            if (error) throw error;
+                .upsert(updates);
+
+            if (error) {
+                // Postgres Unique Violation Code
+                if (error.code === '23505') {
+                    throw new Error('This "Link Slug" is already taken. Please choose another.');
+                }
+                throw error;
+            }
             alert('Profile saved!');
         } catch (error) {
             alert('Error saving profile: ' + error.message);

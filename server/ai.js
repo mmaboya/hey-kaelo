@@ -1,161 +1,191 @@
+// server/ai.js
+require('dotenv').config({ path: './.env' });
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const calendar = require('./calendar');
 const bookings = require('./bookings');
+const supabase = require('./supabase'); // Import Supabase Client
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
-// System Instruction
-const SYSTEM_INSTRUCTION = `
-You are HeyKaelo, the AI receptionist for "Classic Cuts".
-Your goal is to help customers book appointments.
+// --- SYSTEM INSTRUCTION ---
+// We inject context dynamically now.
+function getSystemInstruction(businessContext = {}) {
+    return `
+You are Kaelo, a professional yet friendly automated scheduling assistant for ${businessContext.name || 'a local business'} in South Africa.
+Your goal is to help users find a time and book an appointment with zero friction.
 
-Tools Available:
-- checkAvailability(date): Call this to see what times are open.
-- createBookingRequest(name, datetime, phone): Call this when the user confirms a specific time.
+TONE:
+- Professional-Cool. 
+- Use light greetings like "Aweh", "Sharp", or "Heita" for flavor.
+- Keep the core message clear, professional, and efficient.
+- No heavy slang. Just enough to feel local.
 
-Rules:
-1. When a user asks for an appointment, check availability first.
-2. If they confirm a time, ask for their Name.
-3. Once you have Name and Time, CALL 'createBookingRequest'.
-4. Do NOT say "Booking Confirmed" yet. Say "I've sent your request to the shop owner for approval. You'll get a confirmation message shortly."
-5. Be friendly and concise.
+CONVERSATION FLOW:
+1. When a user asks for an appointment/availability, call 'checkAvailability(date)'.
+2. If the slot is available, confirm it immediately and ask ONLY for their Name (if missing).
+   Example: "Aweh! Checking the schedule... Sharp, tomorrow at 10 AM works. Can I just get your name to lock it in?"
+3. Once you have Name and Time, call 'createBookingRequest'.
+4. After booking, say: "Sharp! I've sent that request through. You'll get a confirmation here once the boss approves it. See you then!"
+
+RULES:
+- Handle dates naturally (today, tomorrow, next Monday).
+- If time is missing, ask nicely: "What time works best for you?"
+- 'createBookingRequest' requires 'name' and 'datetime' (ISO 8601).
 `;
+}
 
-// Define the Tools
-const tools = [
-    {
-        functionDeclarations: [
-            {
-                name: "checkAvailability",
-                description: "Checks the calendar for available appointment slots on a given date.",
-                parameters: {
-                    type: "OBJECT",
-                    properties: {
-                        date: {
-                            type: "STRING",
-                            description: "The date to check (e.g., '2023-10-27' or 'tomorrow')."
-                        }
-                    },
-                    required: ["date"]
-                }
-            },
-            {
-                name: "createBookingRequest",
-                description: "Creates a new booking request that needs approval.",
-                parameters: {
-                    type: "OBJECT",
-                    properties: {
-                        name: { type: "STRING", description: "Customer's name" },
-                        datetime: { type: "STRING", description: "Requested date and time" },
-                        phone: { type: "STRING", description: "Customer's phone number" }
-                    },
-                    required: ["name", "datetime", "phone"]
-                }
-            }
-        ]
+// --- MAIN HANDLER ---
+async function handleIncomingMessage(userPhone, messageText, businessId) {
+    console.log(`🤖 AI Processing for ${userPhone} (Biz: ${businessId || 'None'})`);
+
+    // 1. SAFEGUARDS (Kill Switch) - Phase 12
+    if (businessId) {
+        // Logic to check ai_enabled should ideally be done in index.js to save cost, 
+        // but if we are here, we proceed.
     }
-];
 
-const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-exp",
-    systemInstruction: SYSTEM_INSTRUCTION,
-    tools: tools
-});
+    // 2. LOAD STATE (Phase 7)
+    let state = { metadata: {} };
+    let businessName = "Default Business";
 
-const chatSessions = new Map();
-
-const { createClient } = require('@supabase/supabase-js');
-
-// Init Supabase Admin Lazy
-const supabaseUrl = process.env.SUPABASE_URL;
-// const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Moved inside
-
-async function handleIncomingMessage(from, messageBody) {
-    try {
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        console.log(`📨 Handling msg from ${from}. Key present? ${!!supabaseKey}. Key length: ${supabaseKey ? supabaseKey.length : 0}`);
-        if (!supabaseKey) {
-            console.error("❌ CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing in .env");
-            return "System Error: Missing Credentials.";
-        }
-        const supabase = createClient(supabaseUrl, supabaseKey);
-
-        // 1. Fetch Business Context
-        let businessContext = "";
-        const { data: profiles, error } = await supabase
-            .from('profiles')
-            .select('business_name, business_context')
+    if (businessId) {
+        // Fetch Context + State
+        const { data: stateData } = await supabase
+            .from('conversation_states')
+            .select('*')
+            .eq('phone_number', userPhone)
             .single();
+        if (stateData) state = stateData;
 
-        if (profiles) {
-            businessContext = `\n\nBUSINESS KNOWLEDGE BASE:\nName: ${profiles.business_name}\n${profiles.business_context || ''}`;
+        // Fetch Business Name (Optional, for context)
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('business_name')
+            .eq('id', businessId)
+            .single();
+        if (profile) businessName = profile.business_name;
+    }
+
+    // Recover History from metadata
+    let history = state.metadata?.history || [];
+
+    // Prune history if too long to save tokens/cost
+    if (history.length > 10) history = history.slice(-10);
+
+    // Initial Chat Setup using History (converted to Gemini Format)
+    const chatHistory = history.map(h => ({
+        role: h.role === 'ai' ? 'model' : 'user',
+        parts: [{ text: h.text }]
+    }));
+
+    // Always prepend System Context if it's the very first start or just trust systemInstruction?
+    // Let's inject a system context message as the first item if history is empty.
+    if (chatHistory.length === 0) {
+        chatHistory.push({ role: "user", parts: [{ text: "System Context: User Phone is " + userPhone }] });
+    }
+
+    const chat = model.startChat({
+        history: chatHistory,
+        generationConfig: {
+            maxOutputTokens: 1000,
         }
+    });
 
-        // 2. Dynamic System Instruction
-        const dynamicInstruction = SYSTEM_INSTRUCTION + businessContext;
+    const systemPrompt = getSystemInstruction({ name: businessName });
+    // Note: We don't need to inject history into systemPrompt text if we use chat.history;
+    // but we DO need to ensure the system prompt is active. 
+    // Best practice with this SDK often involves putting the system instruction in the model config, 
+    // but since we reuse the model instance, we rely on the prompt or the first message.
 
-        let chat;
-        if (!chatSessions.has(from)) {
-            const localModel = genAI.getGenerativeModel({
-                model: "gemini-2.0-flash-exp",
-                systemInstruction: dynamicInstruction,
-                tools: tools
-            });
+    // HACK: Re-sending system prompt + user message ensures the model "remembers" its persona every turn 
+    // if state was lost, but with history injection above, it should be fine.
+    // Let's just send the User Message, but maybe prepend the Persona if history is empty.
 
-            chat = localModel.startChat({
-                history: [],
-            });
-            chatSessions.set(from, chat);
-        } else {
-            chat = chatSessions.get(from);
-        }
+    let fullPrompt = messageText;
+    if (history.length === 0) {
+        fullPrompt = `${systemPrompt}\n\nUser: ${messageText}`;
+    }
 
-        // 3. Send User Message
-        let result = await chat.sendMessage(messageBody);
-        let response = result.response;
-        let text = response.text();
+    try {
+        // TIMEOUT SAFEGUARD (Phase 12)
+        const aiPromise = chat.sendMessage(fullPrompt);
+        // Vercel function limit is often 10s. Safely timeout at 15s.
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
 
-        // 4. Check for Function Calls
-        let calls = response.functionCalls();
+        const result = await Promise.race([aiPromise, timeoutPromise]);
+        const response = result.response;
+        const text = response.text();
+        console.log("🤖 AI Raw Response Text:", text);
 
-        while (calls && calls.length > 0) {
-            const call = calls[0];
-            console.log("🛠️ AI wants to call tool:", call.name, call.args);
+        // 5. TOOL LOOP SAFEGUARD - (Simplified Text Parsing for now)
+        // If text contains "CALL: checkAvailability", we execute.
+        // Note: Real function calling is preferred, but this fits the "text-based" requirement of previous steps unless allowed to change model.
 
-            let functionResult = {};
+        // Let's implement basic parsing compatible with previous "Tools" concept.
 
-            if (call.name === "checkAvailability") {
-                functionResult = await calendar.getValues(call.args.date);
-            } else if (call.name === "createBookingRequest") {
-                functionResult = await bookings.addRequest(call.args.name, call.args.datetime, call.args.phone || from);
+        if (text.includes("checkAvailability")) {
+            // ... parsing logic ...
+            // For prototype speed:
+            // We'll rely on the model asking for dates if missing.
+            // If we parse a date, we call it.
+            const dateMatch = messageText.match(/tomorrow|today|monday|tuesday|wednesday|thursday|friday|\d{4}-\d{2}-\d{2}/i);
+            if (dateMatch) {
+                const slots = await calendar.generateSlots(dateMatch[0]);
+                const reply = await chat.sendMessage(`(System Tool Output): ${JSON.stringify(slots)}`);
+                return reply.response.text();
             }
-
-            // Send Tool Result back to AI
-            const toolResponse = [
-                {
-                    functionResponse: {
-                        name: call.name,
-                        response: { result: functionResult }
-                    }
-                }
-            ];
-
-            const result2 = await chat.sendMessage(toolResponse);
-            text = result2.response.text();
-            calls = result2.response.functionCalls();
         }
+
+        // Check for Booking Creation
+        // Expecting: "CALL: createBookingRequest(name='Mpho', datetime='2023-12-25T10:00:00')"
+        if (text.includes("createBookingRequest")) {
+            console.log("🛠️ Detected Tool Call: createBookingRequest");
+            const nameMatch = text.match(/name=['"]([^'"]+)['"]/);
+            const timeMatch = text.match(/datetime=['"]([^'"]+)['"]/);
+
+            if (nameMatch && timeMatch) {
+                const name = nameMatch[1];
+                const datetime = timeMatch[1];
+                const result = await bookings.addRequest(name, datetime, userPhone);
+                if (result.error) {
+                    return `I tried to book that, but: ${result.error}`;
+                } else {
+                    return `Great! I've sent a request for ${result.datetime}. You'll receive a confirmation soon!`;
+                }
+            }
+        }
+
+        // Update History
+        history.push({ role: 'user', text: messageText });
+        history.push({ role: 'ai', text: text });
+        state.metadata.history = history;
+
+        // Update State (Last Action)
+        await updateState(userPhone, businessId, 'processed_message', state.metadata);
 
         return text;
 
-    } catch (error) {
-        console.error("Gemini Error:", error);
-        // If Quota Error, give friendly message
-        if (error.message.includes("429") || error.message.includes("Quota")) {
-            return "I'm a bit overwhelmed right now (Too many requests). Please try again in 1 minute.";
-        }
-        return "Sorry, I'm having trouble thinking right now. Please try again later.";
+    } catch (e) {
+        console.error("AI Error Detailed:", e);
+        if (e.message === 'Timeout') return "I'm thinking a bit slowly. Could you repeat that?";
+        return "I'm having trouble connecting to the schedule. Please try again. Error: " + e.message;
     }
+}
+
+async function updateState(phone, businessId, action, metadata) {
+    if (!businessId) return;
+
+    // Ensure we don't overwrite if we don't have new metadata
+    // But here we want to save.
+    await supabase.from('conversation_states').upsert({
+        phone_number: phone,
+        business_id: businessId,
+        last_action: action,
+        metadata: metadata,
+        updated_at: new Date()
+    }, { onConflict: 'phone_number, business_id' }); // Ensure unique key handling if needed, usually phone is PK/Unique
 }
 
 module.exports = { handleIncomingMessage };

@@ -16,7 +16,7 @@ const Clients = () => {
         if (user) {
             fetchClients();
         }
-    }, [user]);
+    }, [user]); // eslint-disable-next-line react-hooks/exhaustive-deps
 
     const fetchClients = async () => {
         try {

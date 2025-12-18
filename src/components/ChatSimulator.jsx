@@ -37,6 +37,7 @@ const ChatSimulator = () => {
 
             setMessages(prev => [...prev, { role: 'ai', text: data.reply }]);
         } catch (error) {
+            console.error(error);
             setMessages(prev => [...prev, { role: 'ai', text: 'Error connecting to server. Is it running?' }]);
         } finally {
             setLoading(false);

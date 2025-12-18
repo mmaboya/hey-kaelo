@@ -4,75 +4,165 @@ const { google } = require('googleapis');
 const path = require('path');
 
 // Service Account Auth
-const KEY_FILE = path.join(__dirname, 'service-account.json');
-const SCOPES = ['https://www.googleapis.com/auth/calendar'];
+// Support both File (local) and Env Var (cloud/production)
+const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
+let auth;
+let calendar = null; // Default to null if auth fails
 
-const auth = new google.auth.GoogleAuth({
-    keyFile: KEY_FILE,
-    scopes: SCOPES,
-});
+try {
+    if (GOOGLE_SERVICE_ACCOUNT) {
+        // Cloud Mode: Parse JSON from Env
+        const credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
+        auth = new google.auth.GoogleAuth({
+            credentials,
+            scopes: ['https://www.googleapis.com/auth/calendar'],
+        });
+        console.log("☁️  Using Google Credentials from Environment");
+        calendar = google.calendar({ version: 'v3', auth });
+    } else {
+        // Local Mode: Use File
+        // Only try this if we are NOT in production, or if we are sure the file exists
+        if (process.env.NODE_ENV !== 'production') {
+            const KEY_FILE = path.join(__dirname, 'service-account.json');
+            auth = new google.auth.GoogleAuth({
+                keyFile: KEY_FILE,
+                scopes: ['https://www.googleapis.com/auth/calendar'],
+            });
+            console.log("💻 Using Google Credentials from Local File");
+            calendar = google.calendar({ version: 'v3', auth });
+        } else {
+            console.warn("⚠️ Production Mode: No GOOGLE_SERVICE_ACCOUNT env var found, and skipping local file.");
+        }
+    }
+} catch (e) {
+    console.error("❌ Google Calendar Auth Init Failed:", e.message);
+    // Do NOT throw, allowing server to start.
+}
 
-const calendar = google.calendar({ version: 'v3', auth });
+// const calendar = ... (Removed, declared above)
 
 // Use 'primary' to mean the calendar of the person who shared it with the Service Account
-// Ideally, this ID should come from the business profile database.
 const CALENDAR_ID = 'primary';
 
-async function getValues(date) {
-    try {
-        console.log(`📅 Checking Calendar for ${date}...`);
+// CONFIGURATION
+const BUSINESS_START_HOUR = 9;
+const BUSINESS_END_HOUR = 17;
+const SLOT_DURATION_MINUTES = 60;
 
-        // 1. Calculate Start/End of Day
-        // Parse the input string or assume it's "today"
-        let start = new Date();
-        if (date && date.toLowerCase() !== 'today' && date.toLowerCase() !== 'tomorrow') {
-            // Basic parsing
-            start = new Date(date);
-        } else if (date.toLowerCase() === 'tomorrow') {
-            start.setDate(start.getDate() + 1);
+// Helper: Check if a slot overlaps with busy events
+function isBusy(slotStart, slotEnd, busyEvents) {
+    return busyEvents.some(event => {
+        const eventStart = new Date(event.start.dateTime || event.start.date);
+        const eventEnd = new Date(event.end.dateTime || event.end.date);
+        // Overlap: (StartA < EndB) and (EndA > StartB)
+        return (slotStart < eventEnd) && (slotEnd > eventStart);
+    });
+}
+
+// 1. Generate Available Slots (JSON)
+async function generateSlots(dateInput) {
+    try {
+        if (!calendar) {
+            console.warn("⚠️ Calendar not initialized.");
+            return { error: "Calendar system offline." };
         }
 
-        start.setHours(9, 0, 0, 0); // 9 AM
-        const end = new Date(start);
-        end.setHours(17, 0, 0, 0); // 5 PM
+        console.log(`📅 Generating Slots for ${dateInput}...`);
 
-        // 2. Fetch Events from Google
+        let startOfDay = new Date();
+        if (dateInput) {
+            const lower = dateInput.toLowerCase();
+            if (lower === 'tomorrow') {
+                startOfDay.setDate(startOfDay.getDate() + 1);
+            } else if (lower !== 'today') {
+                const parsed = new Date(dateInput);
+                if (!isNaN(parsed)) startOfDay = parsed;
+            }
+        }
+
+        startOfDay.setHours(BUSINESS_START_HOUR, 0, 0, 0);
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setHours(BUSINESS_END_HOUR, 0, 0, 0);
+
+        // Fetch Events
         const res = await calendar.events.list({
             calendarId: CALENDAR_ID,
-            timeMin: start.toISOString(),
-            timeMax: end.toISOString(),
+            timeMin: startOfDay.toISOString(),
+            timeMax: endOfDay.toISOString(),
             singleEvents: true,
             orderBy: 'startTime',
         });
+        const busyEvents = res.data.items || [];
 
-        const events = res.data.items;
+        // Generate Slots
+        const availableSlots = [];
+        let cursor = new Date(startOfDay);
 
-        // 3. Simple Availability Logic
-        // Just return the busy times and let AI figure it out, 
-        // OR return basic "Free Slots" logic.
-        // Let's return a summary string for the AI.
+        while (cursor.getTime() + (SLOT_DURATION_MINUTES * 60000) <= endOfDay.getTime()) {
+            const slotStart = new Date(cursor);
+            const slotEnd = new Date(cursor);
+            slotEnd.setMinutes(slotEnd.getMinutes() + SLOT_DURATION_MINUTES);
 
-        if (!events || events.length === 0) {
-            return `No events found. The whole day (${start.toDateString()}) is free between 9am and 5pm.`;
+            if (!isBusy(slotStart, slotEnd, busyEvents)) {
+                availableSlots.push({
+                    start: slotStart.toISOString(),
+                    end: slotEnd.toISOString(),
+                    label: slotStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                });
+            }
+
+            // Increment by Granularity (same as duration for now)
+            cursor.setMinutes(cursor.getMinutes() + SLOT_DURATION_MINUTES);
         }
 
-        const busyTimes = events.map(event => {
-            const start = event.start.dateTime || event.start.date;
-            const end = event.end.dateTime || event.end.date;
-            return `${new Date(start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-        }).join(', ');
-
-        return `Busy times on ${start.toDateString()}: ${busyTimes}. Other times between 9am-5pm are open.`;
+        return {
+            date: startOfDay.toISOString().split('T')[0],
+            slots: availableSlots
+        };
 
     } catch (error) {
-        console.error('Error fetching calendar:', error);
-        return "Error checking calendar availability.";
+        console.error('Error generating slots:', error);
+        return { error: "Failed to generate availability." };
+    }
+}
+
+// 2. Strict Availability Check (For Booking Validation)
+async function isSlotAvailable(isoDatetime) {
+    try {
+        if (!calendar) return true; // Fail open (or safe default) if offline? Safer to fail closed in PROD.
+        // STRICT MODE: If calendar is offline, we cannot book.
+        if (!calendar) throw new Error("Calendar System Offline");
+
+        const slotStart = new Date(isoDatetime);
+        if (isNaN(slotStart.getTime())) throw new Error("Invalid Date");
+
+        const slotEnd = new Date(slotStart);
+        slotEnd.setMinutes(slotEnd.getMinutes() + SLOT_DURATION_MINUTES);
+
+        // Fetch just the window around this slot
+        // Add a tiny buffer to catch adjacent events? No, simple overlap is fine.
+        const res = await calendar.events.list({
+            calendarId: CALENDAR_ID,
+            timeMin: slotStart.toISOString(),
+            timeMax: slotEnd.toISOString(),
+            singleEvents: true,
+        });
+
+        const busyEvents = res.data.items || [];
+        const busy = isBusy(slotStart, slotEnd, busyEvents);
+
+        return !busy; // Returns TRUE if Available
+
+    } catch (error) {
+        console.error("Availability Check Failed:", error);
+        return false; // Fail Safe: Assume not available if error
     }
 }
 
 // Ensure the AI tool definition matches this signature if changing
 async function createEvent(name, datetime, phone) {
     try {
+        if (!calendar) return { error: "Calendar system offline." };
         console.log(`Creating GCal Event: ${name} at ${datetime}`);
 
         const start = new Date(datetime);
@@ -105,4 +195,4 @@ async function createEvent(name, datetime, phone) {
     }
 }
 
-module.exports = { getValues, createEvent };
+module.exports = { generateSlots, isSlotAvailable, createEvent };

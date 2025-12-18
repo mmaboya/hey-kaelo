@@ -3,6 +3,8 @@ import Hero from './components/Hero';
 import ProblemSection from './components/ProblemSection';
 import HowItWorks from './components/HowItWorks';
 import FeaturesSection from './components/FeaturesSection';
+import PricingSection from './components/PricingSection';
+import ChatWidget from './components/ChatWidget';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
@@ -10,19 +12,29 @@ import ProfileSettings from './components/dashboard/ProfileSettings';
 import Clients from './pages/Clients';
 
 // Marketing Website Layout
-const MarketingSite = () => (
-  <div className="min-h-screen bg-white">
-    <main>
-      <Hero />
-      <ProblemSection />
-      <HowItWorks />
-      <FeaturesSection />
-    </main>
-  </div>
-);
+const MarketingSite = () => {
+  const [viewMode, setViewMode] = React.useState('business'); // 'business' | 'customer'
+
+  return (
+    <div className="min-h-screen bg-white">
+      <main>
+        <Hero viewMode={viewMode} setViewMode={setViewMode} />
+        <ProblemSection />
+        <HowItWorks />
+        <FeaturesSection />
+        <FeaturesSection />
+        <PricingSection viewMode={viewMode} />
+      </main>
+      <ChatWidget />
+    </div>
+  );
+};
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import Setup from './pages/Setup';
 import { Navigate } from 'react-router-dom';
 
 // Protected Route Component
@@ -41,6 +53,15 @@ function App() {
           {/* Public Marketing Site */}
           <Route path="/" element={<MarketingSite />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* Protected Onboarding */}
+          <Route path="/setup" element={
+            <ProtectedRoute>
+              <Setup />
+            </ProtectedRoute>
+          } />
 
           {/* Protected Dashboard */}
           <Route path="/dashboard" element={
