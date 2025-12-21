@@ -143,10 +143,23 @@ app.post('/webhooks/twilio', async (req, res) => {
             throw idempotencyError;
         }
 
-        // 2. BUSINESS RESOLUTION (Phase 8)
+        // 2. BUSINESS RESOLUTION
         let businessId = process.env.DEFAULT_BUSINESS_ID || null;
 
-        // A. Level 1: Direct Channel (Deep Link or Dedicated Number)
+        // Fetch current state for Sticky Session and Onboarding checks
+        let convState = null;
+        try {
+            const { data } = await supabase
+                .from('conversation_states')
+                .select('*')
+                .eq('phone_number', From)
+                .maybeSingle();
+            convState = data;
+        } catch (e) {
+            console.error("❌ Failed to fetch state:", e);
+        }
+
+        // A. Level 1: Direct Channel (Dedicated Number)
         const { data: channel } = await supabase
             .from('business_channels')
             .select('business_id')
@@ -160,29 +173,37 @@ app.post('/webhooks/twilio', async (req, res) => {
 
         // B. Level 2: Sticky Session (Existing User)
         if (!businessId || businessId === process.env.DEFAULT_BUSINESS_ID) {
-            const { data: state } = await supabase
-                .from('conversation_states')
-                .select('business_id')
-                .eq('phone_number', From)
-                .maybeSingle();
-
-            if (state && state.business_id) {
-                businessId = state.business_id;
+            if (convState && convState.business_id) {
+                businessId = convState.business_id;
                 logToFile(`✅ Resolved Business (Sticky): ${businessId}`);
             }
         }
 
-        // 2.5 LOAD STATE
-        let convState = null;
-        try {
-            const { data } = await supabase
-                .from('conversation_states')
-                .select('*')
-                .eq('phone_number', From)
-                .maybeSingle();
-            convState = data;
-        } catch (e) {
-            console.error("❌ Failed to fetch state:", e);
+        // C. Level 3: Slug Detection in Message Body (e.g., "join classic-cuts")
+        if (!businessId || businessId === process.env.DEFAULT_BUSINESS_ID) {
+            const bodyParts = Body.toLowerCase().trim().split(/\s+/);
+            const joinIndex = bodyParts.indexOf('join');
+            const potentialSlug = (joinIndex !== -1 && bodyParts[joinIndex + 1]) ? bodyParts[joinIndex + 1] : (bodyParts.length === 1 ? bodyParts[0] : null);
+
+            if (potentialSlug && potentialSlug.length > 2) {
+                const { data: profileBySlug } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('slug', potentialSlug)
+                    .maybeSingle();
+
+                if (profileBySlug) {
+                    businessId = profileBySlug.id;
+                    logToFile(`✅ Resolved Business (Slug: ${potentialSlug}): ${businessId}`);
+
+                    // Create/Update state to lock this user to the business
+                    await supabase.from('conversation_states').upsert({
+                        phone_number: From,
+                        business_id: businessId,
+                        updated_at: new Date()
+                    }, { onConflict: 'phone_number' });
+                }
+            }
         }
 
         const isOnboarding = convState?.metadata?.onboarding_active === true;

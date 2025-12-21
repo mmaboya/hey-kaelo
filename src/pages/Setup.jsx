@@ -12,6 +12,8 @@ export default function Setup() {
         role_category: '', // 'professional' | 'mobile_service'
         role_type: '',
         other_role: '',
+        phone_number: '',
+        business_name: ''
     });
     const [loading, setLoading] = useState(false);
 
@@ -95,10 +97,12 @@ export default function Setup() {
             const updates = {
                 role_category: formData.role_category,
                 role_type: formData.role_type === 'Other' ? formData.other_role : formData.role_type,
+                phone_number: formData.phone_number,
                 // Differentiated Defaults
                 slot_granularity: isPro ? 30 : 15, // 30m vs 15m
                 approval_required: !isPro,         // Mobile defaults to Approval Required
-                business_name: 'My Business',      // Placeholder if empty
+                business_name: formData.business_name || 'My Business',
+                slug: (formData.business_name || 'biz').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Math.floor(Math.random() * 1000)
             };
 
             const { error } = await supabase
@@ -222,6 +226,30 @@ export default function Setup() {
                                         <h2 className="text-xl font-bold text-secondary mb-6">
                                             "{prop.headline}"
                                         </h2>
+
+                                        <div className="space-y-4 mb-8">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. Classic Cuts"
+                                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary"
+                                                    value={formData.business_name}
+                                                    onChange={e => setFormData({ ...formData, business_name: e.target.value })}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Number</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. 27821234567"
+                                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary"
+                                                    value={formData.phone_number}
+                                                    onChange={e => setFormData({ ...formData, phone_number: e.target.value.replace(/[^0-9]/g, '') })}
+                                                />
+                                                <p className="text-[10px] text-gray-400 mt-1">Include country code, no + or spaces.</p>
+                                            </div>
+                                        </div>
 
                                         <ul className="space-y-3 mb-8">
                                             {prop.points.map((point, i) => (

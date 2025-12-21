@@ -183,6 +183,16 @@ const ProfileSettings = () => {
                         />
                     </div>
                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Number</label>
+                        <input
+                            type="text"
+                            className="w-full p-2 border rounded-lg focus:ring-green-500"
+                            placeholder="e.g. 27821234567"
+                            value={profile.phone_number}
+                            onChange={e => setProfile({ ...profile, phone_number: e.target.value.replace(/[^0-9]/g, '') })}
+                        />
+                    </div>
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Public Link Slug</label>
                         <div className="flex items-center flex-1">
                             <span className="bg-gray-50 text-gray-500 p-2 border border-r-0 rounded-l-lg">heykaelo.com/p/</span>
@@ -195,12 +205,12 @@ const ProfileSettings = () => {
                             />
                             <button
                                 onClick={() => {
-                                    // TODO: Replace with your actual WhatsApp Bot Number
+                                    // Profile slug-based booking link
                                     const botNumber = '14155238886';
-                                    const text = encodeURIComponent(`Hi, I'd like to book an appointment with ${profile.business_name}`);
+                                    const text = encodeURIComponent(`join ${profile.slug}`);
                                     const link = `https://wa.me/${botNumber}?text=${text}`;
                                     navigator.clipboard.writeText(link);
-                                    alert('WhatsApp Booking Link copied! 📋\n(Paste this in your Status)');
+                                    alert('WhatsApp Booking Link copied! 📋\n(Ensure your status says: join ' + profile.slug + ')');
                                 }}
                                 className="p-2 bg-gray-100 border border-l-0 rounded-r-lg hover:bg-gray-200 text-gray-600"
                                 title="Copy WhatsApp Booking Link"
