@@ -99,7 +99,6 @@ export default function Setup() {
                 slot_granularity: isPro ? 30 : 15, // 30m vs 15m
                 approval_required: !isPro,         // Mobile defaults to Approval Required
                 business_name: 'My Business',      // Placeholder if empty
-                updated_at: new Date()
             };
 
             const { error } = await supabase

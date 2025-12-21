@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const FLOWS = {
     root: {
         step: 'root',
-        message: "Hi! I'm Kaelo. 👋 I can help you manage your business booking.\n\nAre you a:\n1. *Professional* (Doctor, Lawyer, Consultant)\n2. *Tradesperson* (Plumber, Electrician, Technician)\n\nReply *1* or *2*.",
+        message: "Aweh! I'm Kaelo. 👋 I'll help you manage your business bookings.\n\nAre you a:\n1. *Professional* (Doctor, Lawyer, etc.)\n2. *Tradesperson* (Plumber, Barber, etc.)\n\nReply *1* or *2*.",
         transitions: {
             '1': 'pro_intro',
             'professional': 'pro_intro',
@@ -155,50 +155,45 @@ async function handleOnboarding(userPhone, messageText, state) {
         };
 
         // Create or Update Profile
-        // verify if phone exists in profiles, if not create.
         // Index.js likely uses ID.
         // We'll upsert based on phone number? Or User ID?
         // Supabase schema usually separates Auth Users and Profiles. 
         // Here we are creating a profile directly from WhatsApp phone.
 
-        const { data: existing } = await supabase.from('profiles').select('id').eq('phone_number', userPhone).single();
+        // Ensure we have a userId linked to Auth
+        let userId = crypto.randomUUID();
+        const dummyEmail = `${userPhone.replace(/[^0-9]/g, '')}@heykaelo.placeholder.com`;
 
-        if (existing) {
-            const { error } = await supabase.from('profiles').update(profileData).eq('id', existing.id);
-            if (error) console.error("❌ Profile Update Error:", error);
-        } else {
-            // Create Auth User first to satisfy FK
-            let userId = crypto.randomUUID();
+        const { data: userData, error: createError } = await supabase.auth.admin.createUser({
+            email: dummyEmail,
+            phone: userPhone,
+            email_confirm: true,
+            phone_confirm: true,
+            user_metadata: { role: 'business_owner' }
+        });
 
-            const dummyEmail = `${userPhone.replace(/[^0-9]/g, '')}@heykaelo.placeholder.com`;
-
-            const { data: userData, error: createError } = await supabase.auth.admin.createUser({
-                email: dummyEmail,
-                phone: userPhone,
-                email_confirm: true,
-                phone_confirm: true,
-                user_metadata: { role: 'business_owner' }
-            });
-
-            if (userData && userData.user) {
-                userId = userData.user.id;
-            } else if (createError) {
-                console.warn("⚠️ Auth User Create Failed (might exist):", createError.message);
-
-                // Try to find existing user 
-                const { data: users } = await supabase.auth.admin.listUsers();
-                if (users && users.users) {
-                    const found = users.users.find(u => u.phone === userPhone || u.email === dummyEmail);
-                    if (found) userId = found.id;
-                }
+        if (userData && userData.user) {
+            userId = userData.user.id;
+        } else if (createError) {
+            // Try to find existing user 
+            const { data: users } = await supabase.auth.admin.listUsers();
+            if (users && users.users) {
+                const found = users.users.find(u => u.phone === userPhone || u.email === dummyEmail);
+                if (found) userId = found.id;
             }
+        }
 
-            const { error } = await supabase.from('profiles').insert([{
-                id: userId,
-                phone_number: userPhone,
-                ...profileData
-            }]);
-            if (error) console.error("❌ Profile Insert Error:", error);
+        // Create or Update Profile using UPSERT for robustness
+        const { error: upsertError } = await supabase.from('profiles').upsert([{
+            id: userId,
+            phone_number: userPhone,
+            ...profileData
+        }], { onConflict: 'id' });
+
+        if (upsertError) {
+            console.error("❌ Profile Upsert Error:", upsertError);
+            // Fallback: try update if upsert fails (e.g. phone_number unique constraint)
+            await supabase.from('profiles').update(profileData).eq('phone_number', userPhone);
         }
 
         // Clear Onboarding State
@@ -206,9 +201,9 @@ async function handleOnboarding(userPhone, messageText, state) {
 
         // Final Message
         if (nextStepId === 'finalize_pro') {
-            return "✅ You’re all set!\n\nClients can now request appointments and I’ll help you confirm them professionally — without back-and-forth.\n\nYour booking link will be ready shortly.";
+            return "✅ You’re all set!\n\nYour profile is created. Clients can now book with you through your professional booking page. Check your email for dashboard access.";
         } else {
-            return "✅ You’re set!\n\nCustomers can now send booking requests and I’ll help you keep track — right here on WhatsApp.\n\nNo apps. No diaries. No stress.";
+            return "✅ You’re set!\n\nCustomers can now send booking requests through WhatsApp. I'll notify you here for every new request. Sharp! 🤙";
         }
 
     } else if (nextStepId) {

@@ -101,20 +101,28 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // 4. Receive WhatsApp Reply (Webhook)
-// Validate Twilio Signature (Disabled for debugging "No Response" issue)
-app.post('/webhooks/twilio', twilio.webhook({ validate: process.env.TWILIO_VALIDATE_SIGNATURE === 'true' }), async (req, res) => {
-    // Robust extraction with defaults
-    const Body = req.body.Body || '';
-    const From = req.body.From || req.body.WaId || '';
-    const To = req.body.To || '';
-    // Ensure MessageSid is never null for DB constraint
-    const MessageSid = req.body.MessageSid || req.body.SmsMessageSid || `MID-${require('crypto').randomUUID()}`;
-
-    // Log minimal info
-    console.log(`📩 INCOMING: ${Body} from ${From} (SID: ${MessageSid})`);
-    logToFile(`📩 INCOMING WEBHOOK: From: ${From}, To: ${To}, Body: ${Body}, SID: ${MessageSid}`);
-
+app.post('/webhooks/twilio', async (req, res) => {
     try {
+        // Log the full body for debugging
+        if (!req.body) {
+            console.error("❌ ERROR: Request body is missing! Check middleware.");
+            logToFile("❌ ERROR: Request body is missing!");
+            return res.status(200).send('<Response><Message>Oops, something is wrong with my connection.</Message></Response>');
+        }
+
+        console.log("📦 Incoming Webhook Body:", JSON.stringify(req.body, null, 2));
+
+        // Robust extraction with defaults (PascalCase from Twilio, fallback to lowercase)
+        const Body = req.body.Body || req.body.body || '';
+        const From = req.body.From || req.body.from || req.body.WaId || '';
+        const To = req.body.To || req.body.to || req.body.Called || '';
+        // Ensure MessageSid is never null for DB constraint
+        const MessageSid = req.body.MessageSid || req.body.SmsMessageSid || req.body.SmsSid || `MID-${require('crypto').randomUUID()}`;
+
+        // Log minimal info
+        console.log(`📩 INCOMING: ${Body} from ${From} (To: ${To}, SID: ${MessageSid})`);
+        logToFile(`📩 INCOMING WEBHOOK: From: ${From}, To: ${To}, Body: ${Body}, SID: ${MessageSid}`);
+
         // 1. IDEMPOTENCY CHECK (Phase 6)
         // Attempt to insert MessageSid. If it exists, this writes nothing and throws a specific error (or we check response).
         // Using 'ignoreDuplicates: false' to catch the error.
@@ -136,27 +144,35 @@ app.post('/webhooks/twilio', twilio.webhook({ validate: process.env.TWILIO_VALID
         }
 
         // 2. BUSINESS RESOLUTION (Phase 8)
-        let businessId = null;
+        let businessId = process.env.DEFAULT_BUSINESS_ID || null;
 
         // A. Level 1: Direct Channel (Deep Link or Dedicated Number)
         const { data: channel } = await supabase
             .from('business_channels')
             .select('business_id')
             .eq('phone_number', To)
-            .single();
+            .maybeSingle();
 
         if (channel) {
             businessId = channel.business_id;
             logToFile(`✅ Resolved Business (Direct): ${businessId}`);
         }
 
-        if (channel) {
-            businessId = channel.business_id;
-            logToFile(`✅ Resolved Business (Direct): ${businessId}`);
+        // B. Level 2: Sticky Session (Existing User)
+        if (!businessId || businessId === process.env.DEFAULT_BUSINESS_ID) {
+            const { data: state } = await supabase
+                .from('conversation_states')
+                .select('business_id')
+                .eq('phone_number', From)
+                .maybeSingle();
+
+            if (state && state.business_id) {
+                businessId = state.business_id;
+                logToFile(`✅ Resolved Business (Sticky): ${businessId}`);
+            }
         }
 
-        // --- NEW: Onboarding Check ---
-        // 1. Check if Onboarding is Active in State
+        // 2.5 LOAD STATE
         let convState = null;
         try {
             const { data } = await supabase
@@ -170,17 +186,10 @@ app.post('/webhooks/twilio', twilio.webhook({ validate: process.env.TWILIO_VALID
         }
 
         const isOnboarding = convState?.metadata?.onboarding_active === true;
+        const isExplicitCommand = Body.toLowerCase().trim().match(/^(setup|join|start)/i);
 
-        // Triggers
-        const isExplicitCommand = Body.toLowerCase().trim().match(/^(setup|join)$/);
-        const isGreeting = Body.toLowerCase().trim().match(/^(hi|hello|start)$/);
-
-        // Logic: 
-        // 1. If explicitly saying "setup" or "join", ALWAYS enter onboarding (Force Reset).
-        // 2. If valid onboarding session active, continue.
-        // 3. If "hi/hello" AND no business resolved, assume onboarding start (User -> Platform)
-
-        if (isExplicitCommand || isOnboarding || (isGreeting && !businessId)) {
+        // If DEFAULT_BUSINESS_ID exists, we skip auto-onboarding for greetings
+        if (isExplicitCommand || isOnboarding) {
             console.log(`🔍 Onboarding Triggered: Explicit=${!!isExplicitCommand}, Active=${isOnboarding}`);
             logToFile(`🚀 Routing to Onboarding: ${From}`);
 
@@ -189,9 +198,7 @@ app.post('/webhooks/twilio', twilio.webhook({ validate: process.env.TWILIO_VALID
                 const { error } = await supabase.from('conversation_states').insert([{
                     phone_number: From,
                     metadata: { onboarding_active: true },
-                    business_id: process.env.DEFAULT_BUSINESS_ID || null, // Clean logic: Null allowed now
-                    last_action: 'onboarding_start',
-                    last_message: 'setup'
+                    business_id: process.env.DEFAULT_BUSINESS_ID || null
                 }]);
                 if (error) {
                     console.error("❌ CRITICAL DB ERROR:", JSON.stringify(error, null, 2));
@@ -204,7 +211,7 @@ app.post('/webhooks/twilio', twilio.webhook({ validate: process.env.TWILIO_VALID
                 // Activate it
                 const meta = convState.metadata || {};
                 meta.onboarding_active = true;
-                await supabase.from('conversation_states').update({ metadata: meta }).eq('id', convState.id);
+                await supabase.from('conversation_states').update({ metadata: meta }).eq('phone_number', From);
             }
 
             console.log("🛠️ calling handleOnboarding...");
@@ -283,32 +290,6 @@ app.post('/webhooks/twilio', twilio.webhook({ validate: process.env.TWILIO_VALID
             }
         }
 
-        // B. Level 2: Sticky Session (Existing User)
-        if (!businessId) {
-            const { data: state } = await supabase
-                .from('conversation_states')
-                .select('business_id')
-                .eq('phone_number', From)
-                .single();
-
-            if (state && state.business_id) {
-                // Logic seems missing here in original code, assuming it should assign businessId
-                businessId = state.business_id;
-                logToFile(`✅ Resolved Business (Sticky): ${businessId}`);
-            }
-
-            // FAIL SAFE
-            // If we are in the SANDBOX, we might not have a businessId yet if it's the very first message
-            // and they didn't say "join".
-            // For Dev/Demo purposes, we might fallback to default if ENV is set.
-            if (!businessId && process.env.DEFAULT_BUSINESS_ID) {
-                console.log(`⚠️ Using Fallback Default Business ID: ${process.env.DEFAULT_BUSINESS_ID}`);
-                businessId = process.env.DEFAULT_BUSINESS_ID;
-                logToFile(`⚠️ Using Fallback Default Business ID: ${businessId}`);
-            }
-
-        }
-
         // End of Resolution Logic
         if (!businessId) {
             console.warn(`❌ Unresolved Business for ${To}. Aborting.`);
@@ -331,11 +312,15 @@ app.post('/webhooks/twilio', twilio.webhook({ validate: process.env.TWILIO_VALID
 
     } catch (error) {
         console.error('❌ Webhook Error:', error);
-        logToFile(`❌ Webhook Error Stack: ${error.stack}`);
+        logToFile(`❌ Webhook Error: ${error.message}\nStack: ${error.stack}`);
+
         // Fallback Reply (Phase 3)
-        const twiml = new MessagingResponse();
-        twiml.message("Oops! I had a little hiccup. Please try sending that again.");
-        res.status(200).type('text/xml').send(twiml.toString());
+        // Ensure we haven't already sent a response
+        if (!res.headersSent) {
+            const twiml = new MessagingResponse();
+            twiml.message("Oops! I had a little hiccup. Please try sending that again.");
+            res.status(200).type('text/xml').send(twiml.toString());
+        }
     }
 });
 

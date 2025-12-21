@@ -21,13 +21,12 @@ async function listModels() {
         const data = await response.json();
 
         if (data.models) {
-            console.log("✅ Available Models:");
+            console.log("✅ All Available Models:");
             data.models.forEach(m => {
-                if (m.name.includes('gemini')) {
-                    console.log(` - ${m.name} (${m.displayName}) - Supported: ${m.supportedGenerationMethods}`);
-                }
+                console.log(` - ${m.name} | Methods: ${m.supportedGenerationMethods.join(', ')}`);
             });
-        } else {
+        }
+        else {
             console.error("❌ Error listing models:", data);
         }
 
