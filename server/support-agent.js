@@ -139,16 +139,29 @@ async function supportTriage(ticketId, userMessage, rawContext = {}) {
         }
     };
 
-    const chat = model.startChat({
-        history: events.map(e => ({
-            role: e.event_type === 'agent_reply' ? 'model' : 'user',
-            parts: [{ text: e.event_type === 'agent_reply' ? e.payload?.message : `[CONTEXT: ${JSON.stringify(context)}] User Message: ${e.payload?.message || userMessage}` }]
-        }))
-    });
+    // 2. Prepare Context for Gemini
+    // We only inject the context into the VERY FIRST message of the history or the current message
+    // to avoid token bloat and repetition.
+    const history = events.slice(0, -1).map(e => ({
+        role: e.event_type === 'agent_reply' ? 'model' : 'user',
+        parts: [{ text: e.payload?.message || '' }]
+    }));
+
+    const chat = model.startChat({ history });
+
+    // Inject context into the prompt only once
+    const promptWithContext = `[CONTEXT: ${JSON.stringify(context)}] ${userMessage}`;
 
     try {
-        const result = await chat.sendMessage(userMessage);
-        const call = result.response.candidates[0].content.parts.find(p => p.functionCall);
+        const result = await chat.sendMessage(promptWithContext);
+        const responseData = result.response;
+
+        if (!responseData.candidates || responseData.candidates.length === 0) {
+            throw new Error("No candidates returned from Gemini");
+        }
+
+        const part = responseData.candidates[0].content.parts[0];
+        const call = part.functionCall;
 
         if (call) {
             console.log(`🤖 Support Agent executing tool: ${call.functionCall.name}`, call.functionCall.args);
@@ -171,7 +184,7 @@ async function supportTriage(ticketId, userMessage, rawContext = {}) {
             // Send tool result back to Gemini for final response
             const finalResult = await chat.sendMessage([{
                 functionResponse: {
-                    name: call.functionCall.name,
+                    name: call.name,
                     response: toolResult
                 }
             }]);

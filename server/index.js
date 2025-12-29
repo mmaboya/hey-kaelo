@@ -126,7 +126,7 @@ app.post('/api/chat', async (req, res) => {
 
 // 3.6 Support Triage
 app.post('/api/support/triage', async (req, res) => {
-    const { ticketId, message, context } = req.body;
+    const { ticketId, message, context, userId } = req.body;
 
     if (!message) return res.error('SUP-400', 'Missing message', 400);
 
@@ -135,6 +135,7 @@ app.post('/api/support/triage', async (req, res) => {
         let tid = ticketId;
         if (!tid) {
             const { data: newTicket } = await supabase.from('support_tickets').insert({
+                tenant_profile_id: userId,
                 subject: message.substring(0, 50),
                 channel: 'web',
                 status: 'open',
