@@ -5,6 +5,8 @@ import HowItWorks from './components/HowItWorks';
 import FeaturesSection from './components/FeaturesSection';
 import PricingSection from './components/PricingSection';
 import ChatWidget from './components/ChatWidget';
+import WhatsNewSection from './components/WhatsNewSection';
+import WorkstyleGuide from './components/WorkstyleGuide';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
@@ -20,8 +22,9 @@ const MarketingSite = () => {
       <main>
         <Hero viewMode={viewMode} setViewMode={setViewMode} />
         <ProblemSection />
+        <WorkstyleGuide />
+        <WhatsNewSection />
         <HowItWorks />
-        <FeaturesSection />
         <FeaturesSection />
         <PricingSection viewMode={viewMode} />
       </main>

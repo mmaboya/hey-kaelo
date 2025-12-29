@@ -30,38 +30,38 @@ const Hero = ({ viewMode, setViewMode }) => {
                     {/* Left Column: Copy */}
                     <div className="flex flex-col justify-center space-y-8 max-w-2xl animate-in fade-in slide-in-from-left-4 duration-500">
                         <div className="space-y-4">
-                            <h1 className="text-4xl font-bold tracking-tight text-secondary-900 sm:text-5xl xl:text-6xl text-balance">
+                            <h1 className="text-5xl font-extrabold tracking-tight text-secondary-900 sm:text-6xl xl:text-7xl text-balance leading-[1.1]">
                                 {viewMode === 'business'
                                     ? "A simple booking link you can share on WhatsApp."
                                     : "Book your next appointment in seconds."}
                             </h1>
-                            <p className="text-lg text-secondary-600 sm:text-xl max-w-lg leading-relaxed">
+                            <p className="text-xl text-secondary-600 sm:text-2xl max-w-lg leading-relaxed font-medium">
                                 {viewMode === 'business'
                                     ? "HeyKaelo gives small businesses a clean booking link, automated reminders, and a simple client file – so you don’t need a secretary to stay organized."
                                     : "No more calling and waiting on hold. Just click the link, pick a time, and get a WhatsApp confirmation instantly."}
                             </p>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex flex-col sm:flex-row gap-6">
                             {viewMode === 'business' ? (
                                 <>
-                                    <Link to="/login" className="inline-flex items-center justify-center h-14 px-8 rounded-pill bg-primary-500 text-white font-medium text-lg transition-colors hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 shadow-soft">
-                                        Get started – it’s free to try
+                                    <Link to="/setup" className="inline-flex items-center justify-center h-16 px-10 rounded-2xl bg-primary-500 text-white font-bold text-xl transition-all hover:bg-primary-600 hover:scale-105 active:scale-95 shadow-2xl shadow-primary/30">
+                                        Start My 14-Day Free Trial
                                     </Link>
                                     <a
                                         href="https://wa.me/14155238886?text=Hi%20HeyKaelo,%20I%20need%20an%20appointment"
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center justify-center h-14 px-8 rounded-pill text-primary-600 font-medium text-lg transition-colors hover:bg-neutral-beige border border-transparent hover:border-primary-200 gap-2"
+                                        className="inline-flex items-center justify-center h-16 px-10 rounded-2xl text-secondary-900 font-bold text-xl transition-all hover:bg-neutral-beige border-2 border-secondary-100 hover:border-primary-200 gap-3"
                                     >
-                                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-600">
-                                            <MessageSquare className="w-4 h-4 fill-current" />
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100 text-green-600">
+                                            <MessageSquare className="w-5 h-5 fill-current" />
                                         </div>
-                                        Try Live Demo
+                                        Live Demo
                                     </a>
                                 </>
                             ) : (
-                                <button className="inline-flex items-center justify-center h-14 px-8 rounded-pill bg-green-600 text-white font-medium text-lg transition-colors hover:bg-green-700 shadow-soft">
+                                <button className="inline-flex items-center justify-center h-16 px-10 rounded-2xl bg-green-600 text-white font-bold text-xl transition-all hover:bg-green-700 hover:scale-105 active:scale-95 shadow-xl transition-all">
                                     Browse Businesses (Demo)
                                 </button>
                             )}
