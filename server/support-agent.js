@@ -4,66 +4,204 @@ const supabase = require("./supabase");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const SUPPORT_SYSTEM_INSTRUCTION = `
-You are Kaelo Support Agent, a specialized resolver for the HeyKaelo platform. 
-Your goal is to triage issues, provide immediate fixes using tools, or summarize the problem for human escalation.
+You are Kaelo (meaning "care" in Sesotho), the friendly AI support assistant for HeyKaelo, a healthcare appointment booking platform serving South Africa's township and rural communities.
 
-TONE: Professional, South African flair ("Sharp", "Hustle"), empathetic, and highly technical.
+## Personality & Tone
+- Warm, patient, respectful, solution-focused.
+- Language: Clear, simple, jargon-free.
+- Cultural context: You understand South African township and rural healthcare challenges.
+- Friendly greetings: "Sharp", "Sure".
 
-MODE OF OPERATION:
-1. Always extract the Intent, Error Code, and Request ID if provided.
-2. Check the Knowledge Base (search_kb) before making assumptions.
-3. If an error is 401: Explain it's a session issue and suggest re-logging. 
-4. If an error is 404: Use lookup tools to see if the ID actually exists.
-5. If you can't resolve with 70% confidence, escalate the ticket.
+## Your Goal
+Fix issues immediately when possible. Only escalate when you truly cannot resolve the problem yourself.
 
-TOOLS AVAILABLE:
-- search_kb: Find internal runbooks.
-- lookup_booking: Check if a booking exists and its status.
-- lookup_document: Check if a signing link is active.
-- refresh_conversation: Clear stuck AI states.
-- escalate_ticket: Send to human with a summary.
+## Response Framework
+1. ACKNOWLEDGE + UNDERSTAND: "I can see you're trying to book..."
+2. DIAGNOSE: Analyze context, error codes, and patterns.
+3. ACT: Take immediate action using tools.
+4. EXPLAIN: Tell the user what you found and what you did.
+5. VERIFY: "Can you see your booking confirmation now?"
+6. NEXT STEPS: Give clear guidance.
+
+## Communication Style
+- Short, clear sentences.
+- Empathy: "I understand that's frustrating."
+- No jargon: Say "connection issue", not "API timeout".
+- Break long paragraphs into short lines.
+
+## Multilingual Support
+- If user writes in isiZulu, respond in isiZulu.
+- If user writes in isiXhosa, respond in isiXhosa.
+- Offer choice if mixed: "Would you prefer I respond in English, isiZulu, or isiXhosa?"
+
+## Escalation Decision Tree
+- ESCALATE IMMEDIATELY: Payment/billing issues, medical emergencies, security concerns, user tried 3+ times.
+- TRY TO FIX: Booking confirmation missing, slot selection issues, WhatsApp connection problems.
 `;
 
-async function supportTriage(ticketId, userMessage, context = {}) {
+// Tool Definitions for Gemini
+const SUPPORT_TOOLS = [
+    {
+        functionDeclarations: [
+            {
+                name: "check_slot_availability",
+                description: "Verify if appointment slots are truly available.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        clinic_id: { type: "string" },
+                        slot_datetime: { type: "string", description: "ISO8601 string" }
+                    },
+                    required: ["slot_datetime"]
+                }
+            },
+            {
+                name: "resend_confirmation",
+                description: "Resend a booking confirmation message.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        booking_id: { type: "string" },
+                        channel: { type: "string", enum: ["sms", "whatsapp", "both"] }
+                    },
+                    required: ["booking_id", "channel"]
+                }
+            },
+            {
+                name: "reset_conversation_state",
+                description: "Clear AI conversation memory for a user to start fresh.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        user_id: { type: "string" }
+                    },
+                    required: ["user_id"]
+                }
+            },
+            {
+                name: "validate_booking",
+                description: "Check if a booking exists and get its status.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        booking_id: { type: "string" }
+                    },
+                    required: ["booking_id"]
+                }
+            },
+            {
+                name: "create_support_ticket",
+                description: "Escalate the issue to a human support agent.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        category: { type: "string" },
+                        priority: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+                        description: { type: "string" }
+                    },
+                    required: ["category", "priority", "description"]
+                }
+            }
+        ]
+    }
+];
+
+async function supportTriage(ticketId, userMessage, rawContext = {}) {
     const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash",
-        systemInstruction: SUPPORT_SYSTEM_INSTRUCTION
+        systemInstruction: SUPPORT_SYSTEM_INSTRUCTION,
+        tools: SUPPORT_TOOLS
     });
 
-    // 1. Fetch Ticket & Recent Events
-    const { data: ticket } = await supabase.from('support_tickets').select('*').eq('id', ticketId).single();
-    const { data: events } = await supabase.from('support_events').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: false }).limit(5);
+    // 1. Fetch Ticket & Hydrate Context
+    const { data: ticket } = await supabase.from('support_tickets').select('*, profiles(*)').eq('id', ticketId).single();
+    const { data: events } = await supabase.from('support_events').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true });
 
-    // 2. Prepare Context for Gemini
+    // Build the Rich Context Object as per blueprint
+    const context = {
+        route: rawContext.route || ticket.route || '/dashboard',
+        request_id: ticket.request_id,
+        user: {
+            id: ticket.tenant_profile_id,
+            profile_id: ticket.tenant_profile_id,
+            preferred_language: 'en',
+            phone_verified: true,
+            last_successful_booking: null
+        },
+        recent_activity: {
+            last_errors: ticket.error_code ? [ticket.error_code] : [],
+            pages_visited: [ticket.route].filter(Boolean),
+            actions_taken: events.filter(e => e.event_type === 'agent_action').map(e => e.payload?.action)
+        },
+        system_status: {
+            whatsapp_connected: true,
+            sms_service_operational: true
+        }
+    };
+
     const chat = model.startChat({
         history: events.map(e => ({
             role: e.event_type === 'agent_reply' ? 'model' : 'user',
-            parts: [{ text: JSON.stringify(e.payload) }]
+            parts: [{ text: e.event_type === 'agent_reply' ? e.payload?.message : `[CONTEXT: ${JSON.stringify(context)}] User Message: ${e.payload?.message || userMessage}` }]
         }))
     });
 
     try {
         const result = await chat.sendMessage(userMessage);
+        const call = result.response.candidates[0].content.parts.find(p => p.functionCall);
+
+        if (call) {
+            console.log(`🤖 Support Agent executing tool: ${call.functionCall.name}`, call.functionCall.args);
+
+            // Log Agent Action
+            await supabase.from('support_events').insert({
+                ticket_id: ticketId,
+                event_type: 'agent_action',
+                payload: { action: call.functionCall.name, args: call.functionCall.args }
+            });
+
+            // Handle tool execution (Stubs for now, expandable)
+            let toolResult = { success: true, message: "Action executed" };
+
+            if (call.functionCall.name === 'create_support_ticket') {
+                await supabase.from('support_tickets').update({ status: 'escalated', priority: call.functionCall.args.priority }).eq('id', ticketId);
+                toolResult = { ticket_id: `HK-${ticketId.split('-')[0].toUpperCase()}`, estimated_response_time: "2 hours" };
+            }
+
+            // Send tool result back to Gemini for final response
+            const finalResult = await chat.sendMessage([{
+                functionResponse: {
+                    name: call.functionCall.name,
+                    response: toolResult
+                }
+            }]);
+
+            const finalResponse = finalResult.response.text();
+            await logReply(ticketId, finalResponse);
+            return finalResponse;
+        }
+
         const response = result.response.text();
-
-        // 3. Log the Agent Reply
-        await supabase.from('support_events').insert({
-            ticket_id: ticketId,
-            event_type: 'agent_reply',
-            payload: { message: response }
-        });
-
-        // 4. Update Ticket Summary
-        await supabase.from('support_tickets').update({
-            summary_ai: response.substring(0, 200),
-            status: 'ai_in_progress'
-        }).eq('id', ticketId);
-
+        await logReply(ticketId, response);
         return response;
+
     } catch (error) {
         console.error("Support AI Error:", error);
-        return "⚠️ I'm having trouble connecting to my support brain. Please try again or wait while I escalate this. Sharp! 🤙";
+        return "⚠️ Ake ngixolise, I'm having trouble with my support brain. Let me get a human to help you. Ticket #HK-" + ticketId.split('-')[0].toUpperCase();
     }
+}
+
+async function logReply(ticketId, message) {
+    await supabase.from('support_events').insert({
+        ticket_id: ticketId,
+        event_type: 'agent_reply',
+        payload: { message }
+    });
+    await supabase.from('support_tickets').update({
+        summary_ai: message.substring(0, 200),
+        status: 'ai_in_progress',
+        updated_at: new Date()
+    }).eq('id', ticketId);
 }
 
 module.exports = { supportTriage };

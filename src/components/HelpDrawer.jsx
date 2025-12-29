@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HelpCircle, X, MessageSquare, AlertTriangle, BookOpen, Camera, Copy, CheckCircle, Send, ArrowRight, Shield } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 const HelpDrawer = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -16,13 +17,22 @@ const HelpDrawer = () => {
         ts: new Date().toISOString()
     };
 
-    const handleCapture = () => {
+    const handleCapture = async () => {
         setIsCapturing(true);
-        // Simulation of screenshot capture
-        setTimeout(() => {
-            setCapturedImage('https://via.placeholder.com/600x400?text=Dashboard+Screenshot+Buffer');
+        try {
+            const canvas = await html2canvas(document.body, {
+                useCORS: true,
+                scale: 0.5, // Reduced scale for faster upload
+                ignoreElements: (el) => el.classList.contains('help-drawer-overlay') || el.closest('.help-drawer-overlay')
+            });
+            const dataUrl = canvas.toDataURL('image/webp', 0.8);
+            setCapturedImage(dataUrl);
+        } catch (error) {
+            console.error("Screenshot failed:", error);
+            alert("Could not capture screenshot. Please try again.");
+        } finally {
             setIsCapturing(false);
-        }, 1200);
+        }
     };
 
     const submitReport = () => {
@@ -55,11 +65,11 @@ const HelpDrawer = () => {
             {/* Help Drawer Overlay */}
             {isOpen && (
                 <div
-                    className="fixed inset-0 bg-secondary-900/20 backdrop-blur-sm z-50 flex justify-end"
+                    className="fixed inset-0 bg-secondary-900/20 backdrop-blur-sm z-50 flex justify-end help-drawer-overlay"
                     onClick={() => setIsOpen(false)}
                 >
                     <div
-                        className="w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300"
+                        className="w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 help-drawer-overlay"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Header */}
