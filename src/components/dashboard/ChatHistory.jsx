@@ -8,22 +8,33 @@ const ChatHistory = ({ businessId }) => {
     const [selectedChat, setSelectedChat] = useState(null);
 
     useEffect(() => {
-        if (!businessId) return;
+        console.log('📬 ChatHistory mounting for businessId:', businessId);
+        if (!businessId) {
+            setLoading(false);
+            return;
+        }
 
         const fetchChats = async () => {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('conversation_states')
-                .select('*')
-                .eq('business_id', businessId)
-                .order('updated_at', { ascending: false });
+            try {
+                const { data, error } = await supabase
+                    .from('conversation_states')
+                    .select('*')
+                    .eq('business_id', businessId)
+                    .order('updated_at', { ascending: false });
 
-            if (error) {
-                console.error('Error fetching chats:', error);
-            } else {
-                setConversations(data || []);
+                if (error) {
+                    console.error('Error fetching chats:', error);
+                    setConversations([]);
+                } else {
+                    setConversations(data || []);
+                }
+            } catch (err) {
+                console.error('Unexpected error in fetchChats:', err);
+                setConversations([]);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
 
         fetchChats();
@@ -104,8 +115,8 @@ const ChatHistory = ({ businessId }) => {
                             {selectedChat.metadata?.history?.map((msg, i) => (
                                 <div key={i} className={`flex ${msg.role === 'ai' || msg.role === 'model' ? 'justify-start' : 'justify-end'}`}>
                                     <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${msg.role === 'ai' || msg.role === 'model'
-                                            ? 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
-                                            : 'bg-orange-600 text-white rounded-tr-none'
+                                        ? 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
+                                        : 'bg-orange-600 text-white rounded-tr-none'
                                         }`}>
                                         {msg.text}
                                     </div>

@@ -9,7 +9,7 @@ export default function Setup() {
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState({
-        role_category: '', // 'professional' | 'mobile_service'
+        role_category: '', // 'professional' | 'mobile_service' | 'hybrid'
         role_type: '',
         other_role: '',
         phone_number: '',
@@ -21,7 +21,7 @@ export default function Setup() {
     const workStyles = [
         {
             id: 'professional',
-            title: 'By Appointment',
+            title: 'Fixed Time Slots',
             subtitle: 'I work on scheduled appointments, usually at a set location.',
             examples: 'Doctor, Psychologist, Lawyer, Physiotherapist, Consultant',
             icon: <Briefcase className="w-8 h-8 text-primary" />,
@@ -29,11 +29,19 @@ export default function Setup() {
         },
         {
             id: 'mobile_service',
-            title: 'On-the-Go / Call-Out',
-            subtitle: 'Customers contact me and I go to them or fit jobs into my day.',
-            examples: 'Plumber, Electrician, Nail Tech, Barber, Beautician',
-            icon: <Wrench className="w-8 h-8 text-secondary" />,
+            title: 'Call-Out / Mobile',
+            subtitle: 'Customers contact me and I go to them or take jobs as they come.',
+            examples: 'Plumber, Electrician, Nail Tech, Barber, Handyman',
+            icon: <MapPin className="w-8 h-8 text-secondary" />,
             color: 'bg-secondary-50 border-secondary-200 hover:border-secondary-500'
+        },
+        {
+            id: 'hybrid',
+            title: 'Both / Mixed',
+            subtitle: 'I handle fixed appointments at my shop and also do call-outs.',
+            examples: 'Beauty Salon, Tailor, Photographer, Studio',
+            icon: <Check className="w-8 h-8 text-accent" />,
+            color: 'bg-accent-50 border-accent-200 hover:border-accent-500'
         }
     ];
 
@@ -48,14 +56,20 @@ export default function Setup() {
         'Hair Stylist', 'Make-up Artist', 'Handyman'
     ];
 
-    const currentRoles = formData.role_category === 'professional' ? professionalRoles : mobileRoles;
+    const hybridRoles = [
+        'Beauty Salon', 'Tailor / Alterations', 'Photographer', 'Workshop', 'Equipment Rental'
+    ];
+
+    const currentRoles = formData.role_category === 'professional'
+        ? professionalRoles
+        : (formData.role_category === 'mobile_service' ? mobileRoles : hybridRoles);
 
     // STEP 3: PROPOSITIONS
     const getProposition = () => {
         if (formData.role_category === 'professional') {
             return {
                 headline: 'Structured appointments, handled professionally.',
-                visual: '🟦 Practice-Grade',
+                visual: '🟦 Fixed-Slot',
                 points: [
                     'Clean booking links',
                     'Calendar-based scheduling',
@@ -64,7 +78,7 @@ export default function Setup() {
                 ],
                 tone: 'Formal, Predictable, Reliable.'
             };
-        } else {
+        } else if (formData.role_category === 'mobile_service') {
             return {
                 headline: 'All your bookings, handled in WhatsApp.',
                 visual: '🟩 WhatsApp-Native',
@@ -72,9 +86,21 @@ export default function Setup() {
                     'Customers book by chatting',
                     'You approve jobs with one reply',
                     'Automatic daily summaries',
-                    'No apps, no dashboards required'
+                    'Photo & Location capture from customers'
                 ],
                 tone: 'Human, Practical, Memory-saving.'
+            };
+        } else {
+            return {
+                headline: 'The best of both worlds, automated.',
+                visual: '🟨 Hybrid-Flow',
+                points: [
+                    'Calendar for set appointments',
+                    'Qualify mobile jobs with photos',
+                    'Manage everything in WhatsApp',
+                    'Automatic daily schedule reminders'
+                ],
+                tone: 'Versatile, Fast, Complete.'
             };
         }
     };
@@ -94,13 +120,14 @@ export default function Setup() {
         try {
             // 1. Determine Defaults based on Category
             const isPro = formData.role_category === 'professional';
+            const isHybrid = formData.role_category === 'hybrid';
             const updates = {
                 role_category: formData.role_category,
                 role_type: formData.role_type === 'Other' ? formData.other_role : formData.role_type,
                 phone_number: formData.phone_number,
                 // Differentiated Defaults
-                slot_granularity: isPro ? 30 : 15, // 30m vs 15m
-                approval_required: !isPro,         // Mobile defaults to Approval Required
+                slot_granularity: isPro ? 30 : 15,
+                approval_required: !isPro, // Fixed appointments auto-approve, mobile/hybrid need check
                 business_name: formData.business_name || 'My Business',
                 slug: (formData.business_name || 'biz').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Math.floor(Math.random() * 1000)
             };

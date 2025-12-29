@@ -21,7 +21,7 @@ const PricingSection = ({ viewMode }) => {
             btnColor: 'bg-white text-secondary-900 border border-gray-200 hover:bg-gray-50'
         },
         {
-            name: 'Professional',
+            name: 'Growth',
             price: isYearly ? 'R 250' : 'R 299',
             period: '/ month',
             description: 'For growing businesses that need hands-free scheduling.',

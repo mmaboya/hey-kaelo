@@ -5,10 +5,7 @@ const logFile = path.join(__dirname, 'server.log');
 
 function logToFile(message) {
     const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] ${message}\n`;
-    fs.appendFile(logFile, logMessage, (err) => {
-        if (err) console.error("Failed to write to log file:", err);
-    });
+    console.log(`[${timestamp}] ${message}`);
 }
 if (result.error) {
     console.error("❌ dotenv config error:", result.error);
@@ -24,6 +21,7 @@ const calendar = require('./calendar'); // Import Calendar
 const supabase = require('./supabase'); // Import Supabase
 const bookings = require('./bookings');
 const onboarding = require('./onboarding');
+const { handleRegistrationChat } = require('./registration');
 const salesBot = require('./sales-bot');
 const { MessagingResponse } = require('twilio').twiml;
 
@@ -143,6 +141,10 @@ app.post('/webhooks/twilio', async (req, res) => {
             throw idempotencyError;
         }
 
+        // 1. Normalize IDs and Inputs
+        const cleanFrom = From.replace(/\D/g, ''); // Digits only (e.g., 27848457056)
+        const cleanTo = To.replace(/\D/g, '');
+
         // 2. BUSINESS RESOLUTION
         let businessId = process.env.DEFAULT_BUSINESS_ID || null;
 
@@ -152,26 +154,63 @@ app.post('/webhooks/twilio', async (req, res) => {
             const { data } = await supabase
                 .from('conversation_states')
                 .select('*')
-                .eq('phone_number', From)
+                .eq('phone_number', cleanFrom) // Use normalized phone
                 .maybeSingle();
             convState = data;
         } catch (e) {
             console.error("❌ Failed to fetch state:", e);
         }
 
-        // A. Level 1: Direct Channel (Dedicated Number)
-        const { data: channel } = await supabase
-            .from('business_channels')
-            .select('business_id')
-            .eq('phone_number', To)
-            .maybeSingle();
+        // A. Level 1: Slug Detection (High Priority - Always Switch if matching)
+        const bodyParts = Body.toLowerCase().trim().split(/\s+/);
+        const joinIndex = bodyParts.indexOf('join');
+        const potentialSlug = (joinIndex !== -1 && bodyParts[joinIndex + 1]) ? bodyParts[joinIndex + 1] : (bodyParts.length === 1 ? bodyParts[0] : null);
 
-        if (channel) {
-            businessId = channel.business_id;
-            logToFile(`✅ Resolved Business (Direct): ${businessId}`);
+        if (potentialSlug && potentialSlug.length > 2) {
+            const { data: profileBySlug } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('slug', potentialSlug)
+                .maybeSingle();
+
+            if (profileBySlug) {
+                businessId = profileBySlug.id;
+                logToFile(`✅ Resolved Business (Slug Priority): ${businessId}`);
+
+                // Exit Onboarding if switching businesses
+                const meta = convState?.metadata || {};
+                if (meta.onboarding_active) {
+                    delete meta.onboarding_active;
+                    delete meta.onboarding_step;
+                    delete meta.onboarding_data;
+                }
+
+                await supabase.from('conversation_states').upsert({
+                    phone_number: cleanFrom,
+                    business_id: businessId,
+                    metadata: meta,
+                    updated_at: new Date()
+                }, { onConflict: 'phone_number' });
+
+                convState = { ...convState, business_id: businessId, metadata: meta };
+            }
         }
 
-        // B. Level 2: Sticky Session (Existing User)
+        // B. Level 2: Direct Channel (Dedicated Number)
+        if (!businessId) {
+            const { data: channel } = await supabase
+                .from('business_channels')
+                .select('business_id')
+                .eq('phone_number', cleanTo)
+                .maybeSingle();
+
+            if (channel) {
+                businessId = channel.business_id;
+                logToFile(`✅ Resolved Business (Direct): ${businessId}`);
+            }
+        }
+
+        // C. Level 3: Sticky Session (Existing User)
         if (!businessId || businessId === process.env.DEFAULT_BUSINESS_ID) {
             if (convState && convState.business_id) {
                 businessId = convState.business_id;
@@ -179,45 +218,26 @@ app.post('/webhooks/twilio', async (req, res) => {
             }
         }
 
-        // C. Level 3: Slug Detection in Message Body (e.g., "join classic-cuts")
-        if (!businessId || businessId === process.env.DEFAULT_BUSINESS_ID) {
-            const bodyParts = Body.toLowerCase().trim().split(/\s+/);
-            const joinIndex = bodyParts.indexOf('join');
-            const potentialSlug = (joinIndex !== -1 && bodyParts[joinIndex + 1]) ? bodyParts[joinIndex + 1] : (bodyParts.length === 1 ? bodyParts[0] : null);
+        const isOnboarding = convState?.metadata?.onboarding_active === true;
 
-            if (potentialSlug && potentialSlug.length > 2) {
-                const { data: profileBySlug } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('slug', potentialSlug)
-                    .maybeSingle();
-
-                if (profileBySlug) {
-                    businessId = profileBySlug.id;
-                    logToFile(`✅ Resolved Business (Slug: ${potentialSlug}): ${businessId}`);
-
-                    // Create/Update state to lock this user to the business
-                    await supabase.from('conversation_states').upsert({
-                        phone_number: From,
-                        business_id: businessId,
-                        updated_at: new Date()
-                    }, { onConflict: 'phone_number' });
-                }
-            }
+        // EXPLICIT EXIT: If the body IS EXACTLY a slug, we skip onboarding logic entirely
+        let isSlugMessage = false;
+        if (businessId && Body.length < 50) {
+            const { data: p } = await supabase.from('profiles').select('slug').eq('id', businessId).maybeSingle();
+            isSlugMessage = p?.slug && Body.toLowerCase().trim() === p.slug.toLowerCase();
         }
 
-        const isOnboarding = convState?.metadata?.onboarding_active === true;
-        const isExplicitCommand = Body.toLowerCase().trim().match(/^(setup|join|start)/i);
+        const isExplicitCommand = Body.toLowerCase().trim().match(/^(setup|start)/i);
 
         // If DEFAULT_BUSINESS_ID exists, we skip auto-onboarding for greetings
-        if (isExplicitCommand || isOnboarding) {
+        if ((isExplicitCommand || isOnboarding) && !isSlugMessage) {
             console.log(`🔍 Onboarding Triggered: Explicit=${!!isExplicitCommand}, Active=${isOnboarding}`);
-            logToFile(`🚀 Routing to Onboarding: ${From}`);
+            logToFile(`🚀 Routing to Onboarding: ${cleanFrom}`);
 
             // If starting fresh, ensure state exists
             if (!convState) {
                 const { error } = await supabase.from('conversation_states').insert([{
-                    phone_number: From,
+                    phone_number: cleanFrom,
                     metadata: { onboarding_active: true },
                     business_id: process.env.DEFAULT_BUSINESS_ID || null
                 }]);
@@ -232,12 +252,12 @@ app.post('/webhooks/twilio', async (req, res) => {
                 // Activate it
                 const meta = convState.metadata || {};
                 meta.onboarding_active = true;
-                await supabase.from('conversation_states').update({ metadata: meta }).eq('phone_number', From);
+                await supabase.from('conversation_states').update({ metadata: meta }).eq('phone_number', cleanFrom);
             }
 
             console.log("🛠️ calling handleOnboarding...");
             try {
-                const reply = await onboarding.handleOnboarding(From, Body, convState || { metadata: { onboarding_active: true } });
+                const reply = await onboarding.handleOnboarding(cleanFrom, Body, convState || { metadata: { onboarding_active: true } });
                 console.log("✅ onboarding returned:", reply);
 
                 const twiml = new MessagingResponse();
@@ -245,67 +265,139 @@ app.post('/webhooks/twilio', async (req, res) => {
                 return res.status(200).type('text/xml').send(twiml.toString());
             } catch (err) {
                 console.error("❌ Onboarding Handler Crashed:", err);
-                require('fs').writeFileSync('crash.log', 'CRASH: ' + err.stack);
                 throw err;
             }
         }
 
-        // --- NEW: Shortcode Detection (Tradesperson Flow) ---
-        if (Body.trim().startsWith('#')) {
-            const shortcodeMatch = Body.match(/^#(\d+)\s+(ok|no)/i);
-            if (shortcodeMatch) {
-                const bookingIdNumeric = shortcodeMatch[1];
-                const response = shortcodeMatch[2].toLowerCase();
+        // 3. HANDOFF TO AI OR FLOWS
+        if (req.body.action === 'data_exchange') {
+            const flowData = req.body.data;
+            logToFile(`📑 Flow Submitted by ${From}: ${JSON.stringify(flowData)}`);
 
-                // 1. Identify Business via From Number
-                const { data: ownerProfile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('phone_number', From.replace('whatsapp:', ''))
-                    .single();
+            // 1. UPDATE DATA (Find the last pending booking for this user)
+            const { data: booking } = await supabase
+                .from('bookings')
+                .select('*')
+                .eq('phone', From)
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
 
-                if (ownerProfile) {
+            if (booking) {
+                await supabase.from('bookings').update({
+                    patient_id_number: flowData.id_number,
+                    medical_aid_name: flowData.medical_aid,
+                    reason_for_visit: flowData.reason,
+                    form_signed_at: new Date()
+                }).eq('id', booking.id);
+
+                // 2. NOTIFY BUSINESS OWNER (Doctor)
+                const { data: biz } = await supabase.from('profiles').select('phone_number, business_name').eq('id', booking.business_id).single();
+                if (biz && biz.phone_number) {
+                    await client.messages.create({
+                        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+                        to: `whatsapp:${biz.phone_number}`,
+                        body: `📝 *New Signed Registration!*\n\nPatient: ${flowData.full_name}\nID: ${flowData.id_number}\nMedical Aid: ${flowData.medical_aid}\nReason: ${flowData.reason}\n\nThis form has been digitally signed and attached to the booking request for ${new Date(booking.datetime).toLocaleString()}.`
+                    });
+                }
+            }
+
+            // 3. ACKNOWLEDGE TO PATIENT
+            return res.status(200).json({
+                screen: "SUCCESS",
+                data: {
+                    extension_message_response: {
+                        params: {
+                            message: "Sharp! Your registration and consent form have been signed. The doctor has been notified. 🤙"
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- NEW: Shortcode & Command Detection for Business Owners ---
+        const trimmedBody = Body.trim().toLowerCase();
+        const ownerPhone = From.replace(/\D/g, ''); // Normalize From number to digits only
+
+        if (trimmedBody.startsWith('#')) {
+            // Fetch all profiles for this phone number
+            const { data: profiles } = await supabase.from('profiles').select('id, business_name, phone_number');
+            const ownerProfiles = profiles?.filter(p => p.phone_number?.replace(/\D/g, '') === ownerPhone) || [];
+
+            if (ownerProfiles.length > 0) {
+                // Check for Summary Commands
+                if (trimmedBody === '#today' || trimmedBody === '#summary') {
+                    let fullSummary = `📅 *Today's Appointments*\n`;
+                    let hasBookings = false;
+
+                    for (const profile of ownerProfiles) {
+                        const daily = await bookings.getDailyBookings(profile.id);
+                        if (daily.length > 0) {
+                            hasBookings = true;
+                            fullSummary += `\n*${profile.business_name}:*\n`;
+                            fullSummary += daily.map(b => `• ${new Date(b.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: ${b.customer_name}`).join('\n') + '\n';
+                        }
+                    }
+
+                    if (!hasBookings) {
+                        return res.status(200).type('text/xml').send(new MessagingResponse().message("Aweh! No confirmed appointments for today across your businesses. 🤙").toString());
+                    }
+
+                    fullSummary += `\nHave a sharp day! 🤙`;
+                    return res.status(200).type('text/xml').send(new MessagingResponse().message(fullSummary).toString());
+                }
+
+                // Check for Accept/Reject Shortcodes (e.g., #123 ok)
+                const shortcodeMatch = Body.match(/^#(\d+)\s+(ok|no)/i);
+                if (shortcodeMatch) {
+                    const bookingId = shortcodeMatch[1];
+                    const response = shortcodeMatch[2].toLowerCase();
+
                     logToFile(`🛠️ Shortcode Detected from Owner ${From}: ${Body}`);
 
-                    // Find the most recent pending booking for this business
-                    const { data: latestBooking } = await supabase
+                    // Search across all owned businesses for this specific booking ID
+                    const { data: targetBooking } = await supabase
                         .from('bookings')
                         .select('*')
-                        .eq('business_id', ownerProfile.id)
-                        .eq('status', 'pending')
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .single();
+                        .eq('id', bookingId)
+                        .in('business_id', ownerProfiles.map(p => p.id))
+                        .maybeSingle();
 
-                    if (latestBooking) {
+                    if (targetBooking) {
+                        if (targetBooking.status !== 'pending') {
+                            return res.status(200).type('text/xml').send(new MessagingResponse().message(`Aweh! This booking (#${bookingId}) is already ${targetBooking.status}.`).toString());
+                        }
+
                         const newStatus = response === 'ok' ? 'approved' : 'rejected';
 
                         // Update Booking
                         await supabase
                             .from('bookings')
                             .update({ status: newStatus })
-                            .eq('id', latestBooking.id);
+                            .eq('id', targetBooking.id);
 
                         // Schedule Reminders if Approved
                         if (newStatus === 'approved') {
-                            await bookings.scheduleReminders(latestBooking.id, latestBooking.start_time);
+                            await bookings.scheduleReminders(targetBooking.id, targetBooking.start_time);
                         }
 
-                        // Notify Customer (Trigger same logic as dashboard)
-                        const bookingInfo = await bookings.getBookingById(latestBooking.id);
+                        // Notify Customer
+                        const bookingInfo = await bookings.getBookingById(targetBooking.id);
                         const customerMsg = newStatus === 'approved'
                             ? `Aweh! Your booking for ${bookingInfo.datetime} has been confirmed. See you then! 🤙`
-                            : `Hi, unfortunately we couldn't make that time work. Please try another slot.`;
+                            : `Hi, unfortunately we couldn't make that time work for your booking on ${bookingInfo.datetime}. Please try another slot.`;
 
                         await client.messages.create({
                             from: process.env.TWILIO_PHONE_NUMBER,
                             to: `whatsapp:${bookingInfo.phone}`,
                             body: customerMsg
-                        });
+                        }).catch(e => console.error("Failed to notify customer:", e));
 
-                        return res.status(200).type('text/xml').send(new MessagingResponse().message(`Sharp! Booking for ${bookingInfo.name} has been ${newStatus}.`).toString());
+                        const biz = ownerProfiles.find(p => p.id === targetBooking.business_id);
+                        return res.status(200).type('text/xml').send(new MessagingResponse().message(`Sharp! Booking for ${bookingInfo.name} (#${bookingId}) at ${biz?.business_name || 'your shop'} has been ${newStatus}.`).toString());
                     } else {
-                        return res.status(200).type('text/xml').send(new MessagingResponse().message("I couldn't find any pending bookings to update.").toString());
+                        return res.status(200).type('text/xml').send(new MessagingResponse().message("I couldn't find that specific booking ID among your businesses. Please check the number.").toString());
                     }
                 }
             }
@@ -320,15 +412,87 @@ app.post('/webhooks/twilio', async (req, res) => {
             return res.status(200).type('text/xml').send(twiml.toString());
         }
 
-        // 3. HANDOFF TO AI
-        // We pass the resolved businessId to the AI logic
+        // 3. HANDOFF TO AI OR ACTIVE REGISTRATION
+        if (convState?.metadata?.registration_active) {
+            logToFile(`📝 Continuing Chat Registration for ${cleanFrom}`);
+            const regBookingId = convState.metadata.reg_booking_id;
+            const mediaUrl = req.body.MediaUrl0 || null; // NEW: Get photo signature
+
+            const reply = await handleRegistrationChat(cleanFrom, Body, convState, regBookingId, mediaUrl);
+            const twiml = new MessagingResponse();
+            twiml.message(reply);
+            return res.type('text/xml').send(twiml.toString());
+        }
+
         logToFile(`🤖 Handoff to AI for Business: ${businessId}`);
-        const responseText = await handleIncomingMessage(From, Body, businessId);
+        const responseText = await handleIncomingMessage(cleanFrom, Body, businessId);
         logToFile(`📤 AI Response: ${responseText}`);
+
+        // --- Flow / Registration Trigger ---
+        if (responseText.includes("registration form")) {
+            // Find the booking we just created
+            const { data: latestBooking } = await supabase
+                .from('bookings')
+                .select('id, business_id')
+                .eq('customer_phone', cleanFrom)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (latestBooking) {
+                // Determine if we use native Flow or Chat-based
+                const { data: profile } = await supabase.from('profiles').select('role_type').eq('id', businessId).single();
+
+                if (profile?.role_type === 'Doctor' && process.env.DOCTOR_FLOW_ID) {
+                    // Try Native Flow (WABA required)
+                    logToFile(`🚀 Triggering Native Flow Message for ${From}`);
+                    try {
+                        await client.messages.create({
+                            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+                            to: From,
+                            body: responseText, // Include the text
+                            // Here we would ideally send an interactive flow message 
+                            // Twilio supports this through 'contentSid' for templates or specialized parameters.
+                            // For this demo, we'll assume the text includes a link or specialized instructions 
+                            // OR we use the specialized interactive parameter if using a provider that supports it.
+                            // Since standard Twilio Node SDK requires Content SID for rich interactive stuff:
+                            // persistentAction: [`flow:{"flow_id":"${process.env.DOCTOR_FLOW_ID}"}`] (hypothetical for some vendors)
+                        });
+                        return res.status(200).send(); // Handled manually
+                    } catch (e) {
+                        console.error("Flow Trigger Error:", e);
+                    }
+                } else {
+                    // Fallback to Seamless Chat Registration (Built-into WhatsApp)
+                    logToFile(`💬 Initializing Chat-based CRM Form for ${cleanFrom}`);
+                    const mediaUrl = req.body.MediaUrl0 || null;
+                    const firstQuestion = await handleRegistrationChat(cleanFrom, Body, convState, latestBooking.id, mediaUrl);
+
+                    if (firstQuestion) {
+                        // Send the first question as a separate message
+                        await client.messages.create({
+                            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+                            to: From,
+                            body: firstQuestion
+                        });
+
+                        // Explicitly update local and DB state to ensure next message is caught
+                        if (!convState) convState = { phone_number: cleanFrom };
+                        const meta = convState.metadata || {};
+                        meta.registration_active = true;
+                        meta.reg_booking_id = latestBooking.id;
+                        await supabase.from('conversation_states').upsert({
+                            phone_number: cleanFrom,
+                            metadata: meta,
+                            business_id: businessId
+                        }, { onConflict: 'phone_number' });
+                    }
+                }
+            }
+        }
 
         const twiml = new MessagingResponse();
         twiml.message(responseText);
-
         res.type('text/xml').send(twiml.toString());
 
     } catch (error) {
@@ -339,7 +503,7 @@ app.post('/webhooks/twilio', async (req, res) => {
         // Ensure we haven't already sent a response
         if (!res.headersSent) {
             const twiml = new MessagingResponse();
-            twiml.message("Oops! I had a little hiccup. Please try sending that again.");
+            twiml.message(`Oops! I had a little hiccup (${error.message.slice(0, 100)}). Please try sending that again.`);
             res.status(200).type('text/xml').send(twiml.toString());
         }
     }

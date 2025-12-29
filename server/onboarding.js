@@ -5,19 +5,21 @@ const crypto = require('crypto');
 const FLOWS = {
     root: {
         step: 'root',
-        message: "Aweh! I'm Kaelo. 👋 I'll help you manage your business bookings.\n\nAre you a:\n1. *Professional* (Doctor, Lawyer, etc.)\n2. *Tradesperson* (Plumber, Barber, etc.)\n\nReply *1* or *2*.",
+        message: "Aweh! I'm Kaelo. 👋 I'll help you manage your bookings.\n\nHow do you usually work?\n1. *Fixed Appointments* (Work from a set location/times)\n2. *On-the-Go / Call-outs* (You go to customers or take walk-ins)\n3. *Both / Mixed* (Handle both scheduled and mobile jobs)\n\nReply *1*, *2*, or *3*.",
         transitions: {
             '1': 'pro_intro',
-            'professional': 'pro_intro',
+            'fixed': 'pro_intro',
             '2': 'trade_intro',
-            'trade': 'trade_intro',
-            'tradesperson': 'trade_intro'
+            'mobile': 'trade_intro',
+            '3': 'hybrid_intro',
+            'both': 'hybrid_intro',
+            'mixed': 'hybrid_intro'
         }
     },
     // --- PATH A: PROFESSIONAL ---
     pro_intro: {
         next: 'pro_business_name',
-        message: "Great 👍\nI’ll help you manage appointments in a structured, reliable way."
+        message: "Great choice. 👍 I’ll act as your digital receptionist, checking your calendar and gathering client info so you can focus on your work."
     },
     pro_business_name: {
         step: 'pro_business_name',
@@ -26,50 +28,58 @@ const FLOWS = {
     },
     pro_role_type: {
         step: 'pro_role_type',
-        message: "What type of professional are you?\n\n1. Doctor\n2. Lawyer\n3. Psychologist\n4. Consultant\n5. Other",
-        options: { '1': 'Doctor', '2': 'Lawyer', '3': 'Psychologist', '4': 'Consultant', '5': 'Other' },
+        message: "What type of professional are you?\n(e.g., GP, Physio, Consultant, Psychologist, Other)",
         saveField: 'role_type'
-    },
-    pro_appointment_length: {
-        step: 'pro_appointment_length',
-        message: "How long is a typical appointment?\n\n1. 30 minutes\n2. 45 minutes\n3. 60 minutes",
-        options: { '1': 30, '2': 45, '3': 60 },
-        saveField: 'appointment_length'
     },
     pro_working_days: {
         step: 'pro_working_days',
-        message: "Which days do you usually work?\n(You can type: Mon–Fri, or list days)",
+        message: "Sharp! Last step: When are you usually available for sessions? (e.g., Mon-Fri 08:00–17:00)",
         saveField: 'working_days',
-        finalize: 'professional' // Trigger profile completion
+        finalize: 'professional'
     },
 
-    // --- PATH B: TRADESPERSON ---
+    // --- PATH B: CALL-OUT / MOBILE ---
     trade_intro: {
         next: 'trade_business_name',
-        message: "Nice 👍\nI’ll help you remember jobs, avoid double bookings, and reply to customers while you’re on the move."
+        message: "Nice choice! 🛠️ I'll help you avoid double-bookings and gather job details (like photos and location) before you even talk to the customer."
     },
     trade_business_name: {
         step: 'trade_business_name',
-        message: "What should customers call you?\n(Business name or your name is fine)",
+        message: "What's your business name?\n(e.g., Sipho's Sparky Services)",
         saveField: 'business_name'
     },
-    trade_type: {
-        step: 'trade_type',
-        message: "What do you do?\n\n1. Plumber\n2. Electrician\n3. Barber\n4. Nail Tech\n5. Technician\n6. Other",
-        options: { '1': 'Plumber', '2': 'Electrician', '3': 'Barber', '4': 'Nail Tech', '5': 'Technician', '6': 'Other' },
-        saveField: 'trade_type'
+    trade_role_type: {
+        step: 'trade_role_type',
+        message: "Sharp. What trade/service are you in?\n(e.g., Electrician, Plumber, Barber)",
+        saveField: 'role_type'
     },
     trade_service_area: {
         step: 'trade_service_area',
-        message: "What area do you mostly work in?\n(Optional — you can skip)",
-        saveField: 'service_area'
+        message: "Which areas do you mostly cover? (e.g., Sandton, Soweto, Randburg)",
+        saveField: 'service_area',
+        finalize: 'tradesperson'
     },
-    trade_reminders: {
-        step: 'trade_reminders',
-        message: "Do you want me to remind you before jobs?\n(This helps a lot 🙌)\n\n1. Yes, remind me\n2. No, not now",
-        options: { '1': true, '2': false, 'yes': true, 'no': false },
-        saveField: 'reminders',
-        finalize: 'trade' // Trigger profile completion
+
+    // --- PATH C: HYBRID / MIXED ---
+    hybrid_intro: {
+        next: 'hybrid_business_name',
+        message: "The best of both worlds! 🚀 I'll handle your fixed bookings AND help you qualify call-out jobs on the move."
+    },
+    hybrid_business_name: {
+        step: 'hybrid_business_name',
+        message: "What’s your business name?",
+        saveField: 'business_name'
+    },
+    hybrid_role_type: {
+        step: 'hybrid_role_type',
+        message: "What service do you provide?\n(e.g., Beauty Salon, Tailor, Sound Engineer)",
+        saveField: 'role_type'
+    },
+    hybrid_service_area: {
+        step: 'hybrid_service_area',
+        message: "Where are you based or which areas do you cover? (e.g., Sandton & Midrand)",
+        saveField: 'service_area',
+        finalize: 'hybrid'
     }
 };
 
@@ -130,16 +140,18 @@ async function handleOnboarding(userPhone, messageText, state) {
     // Determine Next Step
     let nextStepId = null;
 
-    // Hardcoded Transitions based on Request
+    // Hardcoded Transitions
     if (currentStepId === 'pro_business_name') nextStepId = 'pro_role_type';
-    else if (currentStepId === 'pro_role_type') nextStepId = 'pro_appointment_length';
-    else if (currentStepId === 'pro_appointment_length') nextStepId = 'pro_working_days';
+    else if (currentStepId === 'pro_role_type') nextStepId = 'pro_working_days';
     else if (currentStepId === 'pro_working_days') nextStepId = 'finalize_pro';
 
-    else if (currentStepId === 'trade_business_name') nextStepId = 'trade_type';
-    else if (currentStepId === 'trade_type') nextStepId = 'trade_service_area';
-    else if (currentStepId === 'trade_service_area') nextStepId = 'trade_reminders';
-    else if (currentStepId === 'trade_reminders') nextStepId = 'finalize_trade';
+    else if (currentStepId === 'trade_business_name') nextStepId = 'trade_role_type';
+    else if (currentStepId === 'trade_role_type') nextStepId = 'trade_service_area';
+    else if (currentStepId === 'trade_service_area') nextStepId = 'finalize_trade';
+
+    else if (currentStepId === 'hybrid_business_name') nextStepId = 'hybrid_role_type';
+    else if (currentStepId === 'hybrid_role_type') nextStepId = 'hybrid_service_area';
+    else if (currentStepId === 'hybrid_service_area') nextStepId = 'finalize_hybrid';
 
     if (nextStepId && nextStepId.startsWith('finalize')) {
         // SAVE PROFILE
@@ -148,10 +160,12 @@ async function handleOnboarding(userPhone, messageText, state) {
         const profileData = {
             business_name: data.business_name,
             slug: slug,
-            role_category: nextStepId === 'finalize_pro' ? 'professional' : 'tradesperson',
-            role_type: data.role_type || data.trade_type,
+            role_category: nextStepId === 'finalize_pro' ? 'professional' : (nextStepId === 'finalize_trade' ? 'tradesperson' : 'hybrid'),
+            role_type: data.role_type,
+            service_area: data.service_area || null,
+            working_days: data.working_days || null,
             // defaults
-            approval_required: true
+            approval_required: nextStepId !== 'finalize_pro' // Only Pure Pro defaults to auto-approve
         };
 
         // Create or Update Profile
@@ -201,9 +215,11 @@ async function handleOnboarding(userPhone, messageText, state) {
 
         // Final Message
         if (nextStepId === 'finalize_pro') {
-            return "✅ You’re all set!\n\nYour profile is created. Clients can now book with you through your professional booking page. Check your email for dashboard access.";
+            return "You’re all set! ✅ I've set up your assistant. When clients text this number, I'll handle the booking and registration for you. Sharp! 🤙";
+        } else if (nextStepId === 'finalize_trade') {
+            return "You’re ready to hustle! 🚀 When customers text, I'll ask for a photo of the issue and their location. I'll send it all here, and you just reply #ok to accept. Sharp! 🤙";
         } else {
-            return "✅ You’re set!\n\nCustomers can now send booking requests through WhatsApp. I'll notify you here for every new request. Sharp! 🤙";
+            return "You're all set with the best of both! 🚀 I'll handle your fixed bookings AND help you qualify new jobs on the move. Let's get to work. Sharp! 🤙";
         }
 
     } else if (nextStepId) {

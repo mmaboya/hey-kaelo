@@ -37,7 +37,7 @@ const Hero = ({ viewMode, setViewMode }) => {
                             </h1>
                             <p className="text-lg text-secondary-600 sm:text-xl max-w-lg leading-relaxed">
                                 {viewMode === 'business'
-                                    ? "HeyKaelo gives small businesses a clean booking link, automated reminders, and a simple client file – so you don’t need a secretary to look professional."
+                                    ? "HeyKaelo gives small businesses a clean booking link, automated reminders, and a simple client file – so you don’t need a secretary to stay organized."
                                     : "No more calling and waiting on hold. Just click the link, pick a time, and get a WhatsApp confirmation instantly."}
                             </p>
                         </div>

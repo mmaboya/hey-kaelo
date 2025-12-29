@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, Calendar, TrendingUp, Clock, CheckCircle, XCircle, Check, Send, LogOut, Settings, MessageSquare, User as UserIcon } from 'lucide-react';
+import { Users, Calendar, TrendingUp, Clock, CheckCircle, XCircle, Check, Send, LogOut, Settings, MessageSquare, Search, User as UserIcon } from 'lucide-react';
 import ChatSimulator from '../components/ChatSimulator';
 import ProfileSettings from '../components/dashboard/ProfileSettings';
 import ChatHistory from '../components/dashboard/ChatHistory';
@@ -85,30 +85,79 @@ const RequestList = ({ businessId }) => {
     return (
         <div>
             {bookings.map((booking) => (
-                <div key={booking.id} className="p-4 flex items-center justify-between hover:bg-orange-100/50 transition-colors">
-                    <div className="flex gap-4 items-center">
-                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold">
-                            {(booking.customer_name || 'U').charAt(0)}
+                <div key={booking.id} className="p-6 border-b last:border-0 hover:bg-orange-50/30 transition-colors">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex gap-4 items-start">
+                            <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl flex-shrink-0">
+                                {(booking.customer_name || 'U').charAt(0)}
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-bold text-secondary-900 text-lg">{booking.customer_name || 'Unknown'}</p>
+                                    {booking.form_signed_at && (
+                                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">
+                                            <CheckCircle className="w-3 h-3" /> Signed
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-sm text-secondary-600 flex items-center gap-1 mb-2">
+                                    <Calendar className="w-3 h-3" /> {new Date(booking.start_time).toLocaleString()}
+                                </p>
+
+                                {/* Registration Details (Doctor Mode) */}
+                                {(booking.patient_id_number || booking.medical_aid_name) && (
+                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                        {booking.patient_id_number && (
+                                            <div>
+                                                <p className="text-[10px] uppercase text-gray-400 font-bold">ID Number</p>
+                                                <p className="text-sm text-gray-700">{booking.patient_id_number}</p>
+                                            </div>
+                                        )}
+                                        {booking.medical_aid_name && (
+                                            <div>
+                                                <p className="text-[10px] uppercase text-gray-400 font-bold">Medical Aid</p>
+                                                <p className="text-sm text-gray-700 capitalize">{booking.medical_aid_name}</p>
+                                            </div>
+                                        )}
+                                        {booking.reason_for_visit && (
+                                            <div className="sm:col-span-2">
+                                                <p className="text-[10px] uppercase text-gray-400 font-bold">Reason for Visit</p>
+                                                <p className="text-sm text-gray-700 italic">"{booking.reason_for_visit}"</p>
+                                            </div>
+                                        )}
+                                        {booking.signature_url && (
+                                            <div className="sm:col-span-2 mt-2">
+                                                <p className="text-[10px] uppercase text-gray-400 font-bold mb-1">Handwritten Signature</p>
+                                                <div className="relative group w-32 h-20 bg-white border rounded-lg overflow-hidden cursor-pointer hover:border-orange-400 transition-colors"
+                                                    onClick={() => window.open(booking.signature_url, '_blank')}>
+                                                    <img
+                                                        src={booking.signature_url}
+                                                        alt="Signature"
+                                                        className="w-full h-full object-contain p-1"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center transition-all">
+                                                        <Search className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-bold text-secondary-900">{booking.customer_name || 'Unknown'}</p>
-                            <p className="text-sm text-secondary-600 flex items-center gap-1">
-                                <Calendar className="w-3 h-3" /> {new Date(booking.start_time).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-secondary-400">{booking.customer_phone}</p>
+                        <div className="flex gap-3 justify-end items-center">
+                            <button
+                                onClick={() => handleAction(booking.id, 'rejected')}
+                                className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium flex items-center gap-2"
+                            >
+                                <XCircle className="w-5 h-5" /> Decline
+                            </button>
+                            <button
+                                onClick={() => handleAction(booking.id, 'approved')}
+                                className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-sm shadow-green-200 transition-all active:scale-95 flex items-center gap-2">
+                                <Check className="w-5 h-5" /> Accept Booking
+                            </button>
                         </div>
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => handleAction(booking.id, 'rejected')}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Reject">
-                            <XCircle className="w-5 h-5" />
-                        </button>
-                        <button
-                            onClick={() => handleAction(booking.id, 'approved')}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center gap-2">
-                            <Check className="w-4 h-4" /> Accept
-                        </button>
                     </div>
                 </div>
             ))}
