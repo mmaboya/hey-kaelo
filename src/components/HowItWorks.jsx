@@ -20,7 +20,7 @@ const HowItWorks = () => {
     ];
 
     return (
-        <section className="py-20 lg:py-32 bg-white">
+        <section className="py-24 bg-neutral-beige" id="how-it-works">
             <div className="container mx-auto px-4 md:px-6">
 
                 {/* Header */}

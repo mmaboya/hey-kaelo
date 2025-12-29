@@ -7,6 +7,7 @@ import PricingSection from './components/PricingSection';
 import ChatWidget from './components/ChatWidget';
 import WhatsNewSection from './components/WhatsNewSection';
 import WorkstyleGuide from './components/WorkstyleGuide';
+import Navbar from './components/Navbar';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
@@ -19,6 +20,7 @@ const MarketingSite = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      <Navbar />
       <main>
         <Hero viewMode={viewMode} setViewMode={setViewMode} />
         <ProblemSection />
