@@ -29,10 +29,34 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // Middleware
+const crypto = require('crypto');
+
+// Middleware: Request ID & Standard Logger
 app.use((req, res, next) => {
-    console.log(`🌍 Request: ${req.method} ${req.path}`);
+    const requestId = req.headers['x-request-id'] || crypto.randomUUID();
+    req.id = requestId;
+    res.setHeader('x-request-id', requestId);
+
+    console.log(`🌍 [${req.id}] ${req.method} ${req.path}`);
     next();
 });
+
+// Helper: Standardized Error Responder
+app.use((req, res, next) => {
+    res.error = (code, message, status = 500, hint = null) => {
+        return res.status(status).json({
+            error: {
+                code,
+                message,
+                hint,
+                request_id: req.id,
+                ts: new Date().toISOString()
+            }
+        });
+    };
+    next();
+});
+
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -86,6 +110,8 @@ app.post('/api/simulate-chat', async (req, res) => {
     res.json({ reply: response });
 });
 
+const supportAgent = require('./support-agent');
+
 // 3.5 Website Sales Bot (Sepitori)
 app.post('/api/chat', async (req, res) => {
     const { message, sessionId } = req.body;
@@ -96,6 +122,40 @@ app.post('/api/chat', async (req, res) => {
 
     const reply = await salesBot.handleSalesMessage(localSession, message);
     res.json({ reply });
+});
+
+// 3.6 Support Triage
+app.post('/api/support/triage', async (req, res) => {
+    const { ticketId, message, context } = req.body;
+
+    if (!message) return res.error('SUP-400', 'Missing message', 400);
+
+    try {
+        // If no ticketId, create one
+        let tid = ticketId;
+        if (!tid) {
+            const { data: newTicket } = await supabase.from('support_tickets').insert({
+                subject: message.substring(0, 50),
+                channel: 'web',
+                status: 'open',
+                request_id: req.id
+            }).select().single();
+            tid = newTicket.id;
+        }
+
+        // Log user message
+        await supabase.from('support_events').insert({
+            ticket_id: tid,
+            event_type: 'user_message',
+            payload: { message, context, request_id: req.id }
+        });
+
+        const reply = await supportAgent.supportTriage(tid, message, context);
+        res.json({ reply, ticketId: tid });
+    } catch (err) {
+        console.error("Support Triage API Error:", err);
+        res.error('SUP-500', 'Triage failed');
+    }
 });
 
 // 4. Receive WhatsApp Reply (Webhook)

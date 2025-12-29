@@ -1,0 +1,146 @@
+{
+    "version": "2.1",
+    "screens": [
+        {
+            "id": "PATIENT_DETAILS",
+            "title": "Patient Registration",
+            "data": {},
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "patient_form",
+                        "children": [
+                            {
+                                "type": "TextBody",
+                                "text": "Please provide your details to confirm your appointment."
+                            },
+                            {
+                                "type": "TextInput",
+                                "name": "full_name",
+                                "label": "Full Name",
+                                "required": true
+                            },
+                            {
+                                "type": "TextInput",
+                                "name": "id_number",
+                                "label": "ID Number",
+                                "required": true,
+                                "input-type": "number"
+                            },
+                            {
+                                "type": "TextInput",
+                                "name": "reason",
+                                "label": "Reason for Visit",
+                                "placeholder": "e.g. Annual Checkup, Flu symptoms",
+                                "required": true
+                            },
+                            {
+                                "type": "Dropdown",
+                                "name": "medical_aid",
+                                "label": "Medical Aid Status",
+                                "required": true,
+                                "data": [
+                                    {
+                                        "id": "private",
+                                        "title": "Self-Funded / Private"
+                                    },
+                                    {
+                                        "id": "discovery",
+                                        "title": "Discovery Health"
+                                    },
+                                    {
+                                        "id": "momentum",
+                                        "title": "Momentum"
+                                    },
+                                    {
+                                        "id": "bonitas",
+                                        "title": "Bonitas"
+                                    },
+                                    {
+                                        "id": "other",
+                                        "title": "Other Medical Aid"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Review & Sign Consent",
+                                "on-click-action": {
+                                    "name": "navigate",
+                                    "payload": {
+                                        "screen": "CONSENT_SCREEN",
+                                        "data": {
+                                            "full_name": "${form.full_name}",
+                                            "id_number": "${form.id_number}",
+                                            "reason": "${form.reason}",
+                                            "medical_aid": "${form.medical_aid}"
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "CONSENT_SCREEN",
+            "title": "Medical Consent",
+            "data": {
+                "full_name": {
+                    "type": "string",
+                    "default": ""
+                },
+                "id_number": {
+                    "type": "string",
+                    "default": ""
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "consent_form",
+                        "children": [
+                            {
+                                "type": "TextHeading",
+                                "text": "Informed Consent"
+                            },
+                            {
+                                "type": "TextBody",
+                                "text": "I, **${data.full_name}**, hereby consent to medical examination and treatment. I understand that I am liable for costs not covered by my medical aid.\n\nThis form serves as my official signature for the appointment."
+                            },
+                            {
+                                "type": "CheckboxGroup",
+                                "name": "consent_check",
+                                "label": "Signature",
+                                "required": true,
+                                "data": [
+                                    {
+                                        "id": "agree",
+                                        "title": "I agree and sign electronically."
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Finalize Appointment",
+                                "on-click-action": {
+                                    "name": "complete",
+                                    "payload": {
+                                        "full_name": "${data.full_name}",
+                                        "id_number": "${data.id_number}",
+                                        "consent_signed": "${form.consent_check}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+}

@@ -1,0 +1,137 @@
+{
+    "version": "2.1",
+    "screens": [
+        {
+            "id": "PERSONAL_INFO",
+            "title": "Account Application",
+            "data": {},
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "personal_info_form",
+                        "children": [
+                            {
+                                "type": "TextBody",
+                                "text": "Please provide your details as they appear on your ID."
+                            },
+                            {
+                                "type": "TextInput",
+                                "name": "full_name",
+                                "label": "Full Legal Name",
+                                "required": true,
+                                "input-type": "text"
+                            },
+                            {
+                                "type": "TextInput",
+                                "name": "id_number",
+                                "label": "South African ID Number",
+                                "required": true,
+                                "input-type": "number",
+                                "helper-text": "13 digits"
+                            },
+                            {
+                                "type": "Dropdown",
+                                "name": "account_type",
+                                "label": "Preferred Bank Account",
+                                "required": true,
+                                "data": [
+                                    {
+                                        "id": "savings",
+                                        "title": "Savings Account"
+                                    },
+                                    {
+                                        "id": "cheque",
+                                        "title": "Cheque/Current Account"
+                                    },
+                                    {
+                                        "id": "business",
+                                        "title": "Small Business Account"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Next: Terms & Signing",
+                                "on-click-action": {
+                                    "name": "navigate",
+                                    "payload": {
+                                        "screen": "SIGNING_SCREEN",
+                                        "data": {
+                                            "full_name": "${form.full_name}",
+                                            "id_number": "${form.id_number}",
+                                            "account_type": "${form.account_type}"
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "SIGNING_SCREEN",
+            "title": "Digital Signature",
+            "data": {
+                "full_name": {
+                    "type": "string",
+                    "default": ""
+                },
+                "id_number": {
+                    "type": "string",
+                    "default": ""
+                },
+                "account_type": {
+                    "type": "string",
+                    "default": ""
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "signing_form",
+                        "children": [
+                            {
+                                "type": "TextHeading",
+                                "text": "Review & Sign"
+                            },
+                            {
+                                "type": "TextBody",
+                                "text": "I, **${data.full_name}** (ID: ${data.id_number}), hereby apply for a **${data.account_type}**.\n\nBy checking the box below, I confirm that all information provided is accurate and I agree to the Bank's Terms of Service. This action constitutes my legal electronic signature."
+                            },
+                            {
+                                "type": "CheckboxGroup",
+                                "name": "legal_consent",
+                                "label": "Electronic Signature",
+                                "required": true,
+                                "data": [
+                                    {
+                                        "id": "agree",
+                                        "title": "I accept the terms and sign this document."
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Submit to Bank",
+                                "on-click-action": {
+                                    "name": "complete",
+                                    "payload": {
+                                        "full_name": "${data.full_name}",
+                                        "id_number": "${data.id_number}",
+                                        "account_type": "${data.account_type}",
+                                        "signature_confirmed": "${form.legal_consent}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+}

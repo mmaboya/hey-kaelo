@@ -8,6 +8,7 @@ import ChatWidget from './components/ChatWidget';
 import WhatsNewSection from './components/WhatsNewSection';
 import WorkstyleGuide from './components/WorkstyleGuide';
 import Navbar from './components/Navbar';
+import HelpDrawer from './components/HelpDrawer';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
@@ -33,7 +34,9 @@ const MarketingSite = () => {
         <PricingSection viewMode={viewMode} />
       </main>
       <ChatWidget />
+      <HelpDrawer />
     </div>
+    </div >
   );
 };
 
@@ -84,6 +87,7 @@ function App() {
             <Route path="settings" element={<ProfileSettings />} />
           </Route>
         </Routes>
+        <HelpDrawer />
       </BrowserRouter>
     </AuthProvider>
   );
