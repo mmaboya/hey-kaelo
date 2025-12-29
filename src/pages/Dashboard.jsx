@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Users, Calendar, TrendingUp, Clock, CheckCircle, XCircle, Check, Send, LogOut, Settings, MessageSquare, Search, User as UserIcon } from 'lucide-react';
-import ChatSimulator from '../components/ChatSimulator';
+import AppointmentGrid from '../components/dashboard/AppointmentGrid';
 import ProfileSettings from '../components/dashboard/ProfileSettings';
 import ChatHistory from '../components/dashboard/ChatHistory';
 
@@ -403,9 +403,8 @@ const Dashboard = () => {
                                 </div>
                             </div>
 
-                            {/* Interactive AI Simulator (New) */}
-                            <div className="h-full">
-                                <ChatSimulator />
+                            <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-10 min-h-[500px]">
+                                <AppointmentGrid businessId={user.id} />
                             </div>
                         </div>
 
