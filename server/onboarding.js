@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const FLOWS = {
     root: {
         step: 'root',
-        message: "Aweh! I'm your HeyKaelo digital assistant. 👋 I'll help you handle your bookings and grow your business.\n\nTo get started, how do you usually work?\n1. *Fixed Appointments* (Studio, Rooms, or set location)\n2. *On-the-Go* (Call-outs, Deliveries, or Mobile services)\n3. *Both / Mixed* (Best of both worlds!)\n\nReply *1*, *2*, or *3*.",
+        message: "Howdy-doody! ✨ I'm your HeyKaelo digital assistant. 🎈 I'm super-duper excited to help you handle your bookings and grow your business.\n\nTo get started, how do you usually work?\n1. *Fixed Appointments* (Studio, Rooms, or set location)\n2. *On-the-Go* (Call-outs, Deliveries, or Mobile services)\n3. *Both / Mixed* (Best of both worlds!)\n\nReply *1*, *2*, or *3*. Toodles!",
         transitions: {
             '1': 'pro_intro',
             'fixed': 'pro_intro',
@@ -28,7 +28,7 @@ const FLOWS = {
     },
     pro_role_type: {
         step: 'pro_role_type',
-        message: "Sharp. What do you do?\n(e.g., Doctor, Physio, Nail Tech, Tutor)",
+        message: "Okie-dokie artichokie! 🤠 What do you do?\n(e.g., Doctor, Physio, Nail Tech, Tutor)",
         saveField: 'role_type'
     },
     pro_working_days: {
@@ -215,11 +215,11 @@ async function handleOnboarding(userPhone, messageText, state) {
 
         // Final Message
         if (nextStepId === 'finalize_pro') {
-            return "You’re all set! ✅ I've set up your HeyKaelo assistant. When clients text this number, I'll handle the booking and send them your registration form automatically. Let's get those slots filled! Sharp! 🤙";
+            return "You’re all set! ✅ I've set up your HeyKaelo assistant. When clients text this number, I'll handle the booking and send them your registration form automatically. Let's get those slots filled! Super-duper! ✨🎈";
         } else if (nextStepId === 'finalize_trade') {
-            return "You’re ready to hustle! 🚀 When customers text, I'll ask for their job photo and location pin. I'll send it all here, and you just reply #ok to accept. No more time wasted on the road! Sharp! 🤙";
+            return "You’re ready to hustle! 🚀 When customers text, I'll ask for their job photo and location pin. I'll send it all here, and you just reply #ok to accept. No more time wasted on the road! Fan-tas-tic! ✨🤠";
         } else {
-            return "You're all set with the best of both worlds! 🚀 I'll handle your fixed studio bookings AND help you qualify new jobs on the move. HeyKaelo is here to make your life easier. Let's get to work! Sharp! 🤙";
+            return "You're all set with the best of both worlds! 🚀 I'll handle your fixed studio bookings AND help you qualify new jobs on the move. HeyKaelo is here to make your life easier. Let's get to work! Toodles! ✨🎈";
         }
 
     } else if (nextStepId) {

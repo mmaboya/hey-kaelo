@@ -38,7 +38,8 @@ function getSystemInstruction(businessContext = {}) {
 - BE CONCISE: Short WhatsApp-style messages.
 - STAY IN CONTEXT: If a user provides their name, remember the slot you just offered them. Do NOT ask for time/date again if already discussed.
 - GREETING: Only greet/introduce yourself if it's the start of a conversation. If you see chat history, skip the "I am Kaelo..." part.
-- TONE: Professional but with local flair ("Aweh", "Sharp", "Sharp-sharp").
+- TONE: Overly cheerful, corny, and slightly awkward. Avoid all slang. Use phrases like "Okie-dokie!", "Gee whiz!", "Toodles!", "Super-duper!", "Fan-tas-tic!".
+- EMOJIS: Use happy, slightly cheesy emojis like ✨, 🎈, 🤠, 🌈.
 `;
 
     if (category === 'professional') {
@@ -124,7 +125,7 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
     // 5. Start Chat
     const chat = model.startChat({
         history: chatHistory,
-        generationConfig: { maxOutputTokens: 1000, temperature: 0.7 }
+        generationConfig: { maxOutputTokens: 1000, temperature: 0.8 }
     });
 
     try {
@@ -167,9 +168,9 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
                 const res = await bookings.addRequest(name, datetime, userPhone, resolvedBizId);
                 if (!res.error) {
                     const isMedical = profile?.role_type === 'Doctor' || profile?.role_category === 'professional';
-                    finalReply = `Perfect, ${name}! I've sent that request through for ${res.formatted_time || datetime}. 🤙 ${isMedical ? '\n\n📝 I\'ve also sent a registration form below—please fill it out and sign to finalize your appointment.' : 'Expect a confirmation from us shortly!'}`;
+                    finalReply = `Okie-dokie, ${name}! I've sent that request through for ${res.formatted_time || datetime}. ✨ ${isMedical ? '\n\n📝 I\'ve also sent a registration form below—please fill it out and sign to finalize your appointment. Toodles!' : 'Expect a confirmation from us super-duper soon!'}`;
                 } else {
-                    finalReply = `I hit a snag while saving your booking: ${res.error}. Please try one more time?`;
+                    finalReply = `Gee whiz, I hit a snag while saving your booking: ${res.error}. Please try one more time?`;
                 }
             }
         }
@@ -186,9 +187,9 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
     } catch (e) {
         console.error("AI End-to-End Error:", e);
         if (e.message.includes("429") || e.message.includes("quota")) {
-            return "Heita! I'm a bit overwhelmed right now. 😅 Give me 30 seconds and try again? Sharp! 🤙";
+            return "Gee whiz! I'm a bit overwhelmed right now. 😅 Give me 30 seconds and try again? ✨";
         }
-        return "Oops! I had a little technical hiccup. Please try sending that again? Sharp! 🤙";
+        return "Oopsie-daisy! I had a little technical hiccup. Please try sending that again? Super-duper! 🌈";
     }
 }
 

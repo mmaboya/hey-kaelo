@@ -370,7 +370,7 @@ app.post('/webhooks/twilio', async (req, res) => {
                 data: {
                     extension_message_response: {
                         params: {
-                            message: "Sharp! Your registration and consent form have been signed. The doctor has been notified. 🤙"
+                            message: "Okie-dokie! Your registration and consent form have been signed. The doctor has been notified. ✨"
                         }
                     }
                 }
@@ -402,10 +402,10 @@ app.post('/webhooks/twilio', async (req, res) => {
                     }
 
                     if (!hasBookings) {
-                        return res.status(200).type('text/xml').send(new MessagingResponse().message("Aweh! No confirmed appointments for today across your businesses. 🤙").toString());
+                        return res.status(200).type('text/xml').send(new MessagingResponse().message("Gee whiz! No confirmed appointments for today across your businesses. ✨").toString());
                     }
 
-                    fullSummary += `\nHave a sharp day! 🤙`;
+                    fullSummary += `\nHave a fan-tas-tic day! 🎈`;
                     return res.status(200).type('text/xml').send(new MessagingResponse().message(fullSummary).toString());
                 }
 
@@ -427,7 +427,7 @@ app.post('/webhooks/twilio', async (req, res) => {
 
                     if (targetBooking) {
                         if (targetBooking.status !== 'pending') {
-                            return res.status(200).type('text/xml').send(new MessagingResponse().message(`Aweh! This booking (#${bookingId}) is already ${targetBooking.status}.`).toString());
+                            return res.status(200).type('text/xml').send(new MessagingResponse().message(`Gee whiz! This booking (#${bookingId}) is already ${targetBooking.status}.`).toString());
                         }
 
                         const newStatus = response === 'ok' ? 'approved' : 'rejected';
@@ -446,8 +446,8 @@ app.post('/webhooks/twilio', async (req, res) => {
                         // Notify Customer
                         const bookingInfo = await bookings.getBookingById(targetBooking.id);
                         const customerMsg = newStatus === 'approved'
-                            ? `Aweh! Your booking for ${bookingInfo.datetime} has been confirmed. See you then! 🤙`
-                            : `Hi, unfortunately we couldn't make that time work for your booking on ${bookingInfo.datetime}. Please try another slot.`;
+                            ? `Okie-dokie! Your booking for ${bookingInfo.datetime} has been confirmed. See you then! ✨`
+                            : `Gee whiz, unfortunately we couldn't make that time work for your booking on ${bookingInfo.datetime}. Please try another slot.`;
 
                         await client.messages.create({
                             from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
@@ -456,7 +456,7 @@ app.post('/webhooks/twilio', async (req, res) => {
                         }).catch(e => console.error("Failed to notify customer:", e));
 
                         const biz = ownerProfiles.find(p => p.id === targetBooking.business_id);
-                        return res.status(200).type('text/xml').send(new MessagingResponse().message(`Sharp! Booking for ${bookingInfo.name} (#${bookingId}) at ${biz?.business_name || 'your shop'} has been ${newStatus}.`).toString());
+                        return res.status(200).type('text/xml').send(new MessagingResponse().message(`Super-duper! Booking for ${bookingInfo.name} (#${bookingId}) at ${biz?.business_name || 'your shop'} has been ${newStatus}.`).toString());
                     } else {
                         return res.status(200).type('text/xml').send(new MessagingResponse().message("I couldn't find that specific booking ID among your businesses. Please check the number.").toString());
                     }
@@ -558,7 +558,7 @@ app.post('/webhooks/twilio', async (req, res) => {
         // Ensure we haven't already sent a response
         if (!res.headersSent) {
             const twiml = new MessagingResponse();
-            twiml.message(`Aweh! I had a tiny technical hiccup. 😅 Please try sending that again? Sharp! 🤙`);
+            twiml.message(`Aweh! I had a tiny technical hiccup. 😅 Please try sending that again? Super-duper! 🌈`);
             res.status(200).type('text/xml').send(twiml.toString());
         }
     }
@@ -649,9 +649,9 @@ async function processReminders() {
         // 3. Construct Message
         let message = "";
         if (reminder.type === '24h_before') {
-            message = `Hi ${booking.customer_name}! 👋 Just a friendly reminder from ${bizName} that you're booked in for tomorrow at ${timeStr}. We're looking forward to seeing you. Sharp! 🚀`;
+            message = `Hi ${booking.customer_name}! ✨ Just a friendly reminder from ${bizName} that you're booked in for tomorrow at ${timeStr}. We're looking forward to seeing you. Toodles! 🎈`;
         } else {
-            message = `Aweh ${booking.customer_name}! Just a quick heads-up that your appointment with ${bizName} is coming up today at ${timeStr}. See you soon! Sharp.`;
+            message = `Okie-dokie ${booking.customer_name}! Just a quick heads-up that your appointment with ${bizName} is coming up today at ${timeStr}. See you soon! Super-duper.`;
         }
 
         try {

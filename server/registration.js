@@ -2,12 +2,12 @@ const supabase = require('./supabase');
 
 const REG_STEPS = {
     'REG_NAME': {
-        message: "Sharp! Let's get you registered for the doctor. 📝\n\nWhat is your **Full Legal Name**?",
+        message: "Okie-dokie! Let's get you registered for the doctor. ✨\n\nWhat is your **Full Legal Name**?",
         field: 'full_name',
         next: 'REG_ID'
     },
     'REG_ID': {
-        message: "Thanks! Now, what is your **ID Number**?",
+        message: "Gee whiz, thanks! Now, what is your **ID Number**?",
         field: 'id_number',
         next: 'REG_MEDICAL'
     },
@@ -57,7 +57,7 @@ async function handleRegistrationChat(phone, message, state, bookingId, mediaUrl
         // For now, we store in conversation_states as the source of truth for the dashboard
         console.log("✅ Registration finalized for:", phone, regData);
 
-        return "✅ **Registration & Signature Received!**\n\nI've sent your file to the doctor. See you at your appointment! Sharp! 🤙";
+        return "✅ **Registration & Signature Received!**\n\nI've sent your file to the doctor. See you at your appointment! Fan-tas-tic! ✨🎈";
     }
 
     // Special Check: Signature step requires media
