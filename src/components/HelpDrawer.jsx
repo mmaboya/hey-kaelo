@@ -113,11 +113,11 @@ const HelpDrawer = () => {
                                         <div className="grid grid-cols-1 gap-2">
                                             <button className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left text-sm font-bold text-secondary-900 flex items-center justify-between group">
                                                 <span>WhatsApp Messages not delivering</span>
-                                                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-secondary-900" />
+                                                <ChevronRightIcon className="w-4 h-4 text-gray-300 group-hover:text-secondary-900" />
                                             </button>
                                             <button className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left text-sm font-bold text-secondary-900 flex items-center justify-between group">
                                                 <span>Reset AI Conversation State</span>
-                                                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-secondary-900" />
+                                                <ChevronRightIcon className="w-4 h-4 text-gray-300 group-hover:text-secondary-900" />
                                             </button>
                                         </div>
                                     </div>
@@ -215,7 +215,7 @@ const HelpDrawer = () => {
                                         <div key={i} className="p-4 border border-gray-100 rounded-2xl hover:border-primary-200 hover:shadow-sm transition-all cursor-pointer group">
                                             <p className="font-bold text-secondary-900 group-hover:text-primary-600 transition-colors">{guide.title}</p>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <Clock className="w-3 h-3 text-gray-400" />
+                                                <ClockIcon className="w-3 h-3 text-gray-400" />
                                                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{guide.time}</span>
                                             </div>
                                         </div>
@@ -237,7 +237,7 @@ const HelpDrawer = () => {
     );
 };
 
-const ChevronRight = ({ className }) => <ArrowRight className={className} />;
-const Clock = ({ className }) => <BookOpen className={className} />;
+const ChevronRightIcon = ({ className }) => <ArrowRight className={className} />;
+const ClockIcon = ({ className }) => <BookOpen className={className} />;
 
 export default HelpDrawer;

@@ -34,9 +34,7 @@ const MarketingSite = () => {
         <PricingSection viewMode={viewMode} />
       </main>
       <ChatWidget />
-      <HelpDrawer />
     </div>
-    </div >
   );
 };
 
