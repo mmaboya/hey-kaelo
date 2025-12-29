@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { HelpCircle, X, MessageSquare, AlertTriangle, BookOpen, Camera, Copy, CheckCircle, Send, ArrowRight, Shield, ArrowLeft } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { useAuth } from '../context/AuthContext';
