@@ -82,8 +82,8 @@ app.post('/api/send-whatsapp', async (req, res) => {
 
     try {
         const message = await client.messages.create({
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: `whatsapp:${to}`,
+            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
+            to: `whatsapp:${to.replace('whatsapp:', '')}`,
             body: body
         });
 
@@ -91,7 +91,7 @@ app.post('/api/send-whatsapp', async (req, res) => {
         res.json({ success: true, sid: message.sid });
     } catch (error) {
         console.error('Error sending message:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to send WhatsApp message.' });
     }
 });
 
@@ -357,8 +357,8 @@ app.post('/webhooks/twilio', async (req, res) => {
                 const { data: biz } = await supabase.from('profiles').select('phone_number, business_name').eq('id', booking.business_id).single();
                 if (biz && biz.phone_number) {
                     await client.messages.create({
-                        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-                        to: `whatsapp:${biz.phone_number}`,
+                        from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
+                        to: `whatsapp:${biz.phone_number.replace('whatsapp:', '')}`,
                         body: `📝 *New Signed Registration!*\n\nPatient: ${flowData.full_name}\nID: ${flowData.id_number}\nMedical Aid: ${flowData.medical_aid}\nReason: ${flowData.reason}\n\nThis form has been digitally signed and attached to the booking request for ${new Date(booking.datetime).toLocaleString()}.`
                     });
                 }
@@ -450,8 +450,8 @@ app.post('/webhooks/twilio', async (req, res) => {
                             : `Hi, unfortunately we couldn't make that time work for your booking on ${bookingInfo.datetime}. Please try another slot.`;
 
                         await client.messages.create({
-                            from: process.env.TWILIO_PHONE_NUMBER,
-                            to: `whatsapp:${bookingInfo.phone}`,
+                            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
+                            to: `whatsapp:${bookingInfo.phone.replace('whatsapp:', '')}`,
                             body: customerMsg
                         }).catch(e => console.error("Failed to notify customer:", e));
 
@@ -509,17 +509,11 @@ app.post('/webhooks/twilio', async (req, res) => {
                     logToFile(`🚀 Triggering Native Flow Message for ${From}`);
                     try {
                         await client.messages.create({
-                            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-                            to: From,
-                            body: responseText, // Include the text
-                            // Here we would ideally send an interactive flow message 
-                            // Twilio supports this through 'contentSid' for templates or specialized parameters.
-                            // For this demo, we'll assume the text includes a link or specialized instructions 
-                            // OR we use the specialized interactive parameter if using a provider that supports it.
-                            // Since standard Twilio Node SDK requires Content SID for rich interactive stuff:
-                            // persistentAction: [`flow:{"flow_id":"${process.env.DOCTOR_FLOW_ID}"}`] (hypothetical for some vendors)
+                            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
+                            to: From.startsWith('whatsapp:') ? From : `whatsapp:${From}`,
+                            body: responseText,
                         });
-                        return res.status(200).send(); // Handled manually
+                        return res.status(200).send();
                     } catch (e) {
                         console.error("Flow Trigger Error:", e);
                     }
@@ -532,8 +526,8 @@ app.post('/webhooks/twilio', async (req, res) => {
                     if (firstQuestion) {
                         // Send the first question as a separate message
                         await client.messages.create({
-                            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-                            to: From,
+                            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
+                            to: From.startsWith('whatsapp:') ? From : `whatsapp:${From}`,
                             body: firstQuestion
                         });
 
@@ -564,7 +558,7 @@ app.post('/webhooks/twilio', async (req, res) => {
         // Ensure we haven't already sent a response
         if (!res.headersSent) {
             const twiml = new MessagingResponse();
-            twiml.message(`Oops! I had a little hiccup (${error.message.slice(0, 100)}). Please try sending that again.`);
+            twiml.message(`Aweh! I had a tiny technical hiccup. 😅 Please try sending that again? Sharp! 🤙`);
             res.status(200).type('text/xml').send(twiml.toString());
         }
     }
@@ -603,8 +597,8 @@ app.post('/api/bookings/:id/respond', async (req, res) => {
 
     try {
         await client.messages.create({
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: `whatsapp:${booking.phone}`,
+            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
+            to: `whatsapp:${booking.phone.replace('whatsapp:', '')}`,
             body: message
         });
         console.log(`Sent ${action} notification to ${booking.phone}`);
@@ -660,11 +654,10 @@ async function processReminders() {
             message = `Aweh ${booking.customer_name}! Just a quick heads-up that your appointment with ${bizName} is coming up today at ${timeStr}. See you soon! Sharp.`;
         }
 
-        // 4. Send WhatsApp
         try {
             await client.messages.create({
-                from: process.env.TWILIO_PHONE_NUMBER,
-                to: `whatsapp:${booking.customer_phone}`,
+                from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
+                to: `whatsapp:${booking.customer_phone.replace('whatsapp:', '')}`,
                 body: message
             });
 

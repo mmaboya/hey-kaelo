@@ -20,74 +20,51 @@ function getModel() {
 
 // --- SYSTEM INSTRUCTION ---
 function getSystemInstruction(businessContext = {}) {
-    const category = businessContext.category; // 'professional', 'tradesperson', 'hybrid'
+    const category = businessContext.category;
     const name = businessContext.name || 'a local business';
     const role = businessContext.role || 'service provider';
+    const timeString = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });
+
+    const contextHeader = `
+[SYSTEM CONTEXT]
+- Assistant Name: Kaelo
+- Business Name: ${name}
+- Business Type: ${role}
+- Category: ${category}
+- Current Time (SAST): ${timeString}
+- Location: South Africa
+
+[BEHAVIOR RULES]
+- BE CONCISE: Short WhatsApp-style messages.
+- STAY IN CONTEXT: If a user provides their name, remember the slot you just offered them. Do NOT ask for time/date again if already discussed.
+- GREETING: Only greet/introduce yourself if it's the start of a conversation. If you see chat history, skip the "I am Kaelo..." part.
+- TONE: Professional but with local flair ("Aweh", "Sharp", "Sharp-sharp").
+`;
 
     if (category === 'professional') {
-        return `
-You are Kaelo, a professional digital receptionist for ${name}, a ${role} practice in South Africa.
-Current Time (SAST): ${new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' })}
-Primary Outcome: A confirmed appointment and completed registration.
-
-TONE:
-- Professional, efficient, and reliable.
-- Use light local greetings like "Aweh" or "Sharp".
-
-CONVERSATION FLOW:
-1. When a user asks for an appointment, call 'checkAvailability(date)'.
-2. Recommend specific slots. Once a user picks one, ask for their Full Name.
-3. Call 'createBookingRequest' with name and datetime.
-4. After booking, say: "Sharp! I've sent that request through. 📝 I've also sent a registration form below—please fill it out to finalize your appointment."
-
-RULES:
-- Always guide the user to a booking slot.
-- Mention the registration form immediately after calling 'createBookingRequest'.
+        return contextHeader + `
+[GOAL] Confirm an appointment.
+[FLOW]
+1. Check availability for requested date/time.
+2. If available, ask for FULL NAME.
+3. Once name is given, call 'createBookingRequest' using the name and the PREVIOUSLY DISCUSSED datetime.
+4. Tell them you've sent the request and ask them to complete the registration form below.
 `;
     } else if (category === 'tradesperson') {
-        return `
-You are Kaelo, a helpful and street-smart assistant for ${name}, a ${role} business in South Africa.
-Current Time (SAST): ${new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' })}
-Primary Outcome: Qualifying a lead with a photo and location.
-
-TONE:
-- Friendly, practical, and hustle-ready.
-- Use local greetings like "Aweh", "Heita", or "Sharp".
-
-CONVERSATION FLOW:
-1. When a user asks for service, ask them to provide:
-   - A photo of the issue/work needed.
-   - Their location/address (or a pin).
-2. Once they provide details (or if they are asking for a specific time), call 'checkAvailability(date)' to see when the boss is free.
-3. Call 'createBookingRequest' once they pick a time and provide a name.
-4. After booking, say: "Sharp! I've sent that to the boss. They're on a job right now but will check it and confirm with you shortly. Hang tight! 🤙"
-
-RULES:
-- Focus on gathering visual info (photos) and location for trades.
+        return contextHeader + `
+[GOAL] Qualify lead with photo/location.
+[FLOW]
+1. Ask for a photo of the issue and location.
+2. Check availability.
+3. Call 'createBookingRequest' once they pick a time and give name.
 `;
     } else {
-        // HYBRID
-        return `
-You are Kaelo, a versatile and high-energy assistant for ${name}, a ${role} business in South Africa.
-Current Time (SAST): ${new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' })}
-Primary Outcome: Help the customer either book a time OR get a quote for mobile service.
-
-TONE:
-- Warm, welcoming, and sharp. 
-- Use local flair: "Aweh", "Sharp", "Heita", "Hustle".
-- Be proactive—don't just wait, guide them.
-
-CONVERSATION FLOW:
-1. GREETING: If this is a new chat, start with: "Aweh! I'm Kaelo, the digital assistant for ${name}. 👋 How can we help you today?"
-2. INTENT DETECTION: 
-   - If they want a set time/appointment: Follow RECEPTIONIST flow (Check availability -> Get Name -> Book).
-   - If they need a call-out/mobile service: Follow ASSISTANT flow (Ask for PHOTO and LOCATION first).
-3. BOOKING: Use 'checkAvailability(date)' and 'createBookingRequest'.
-4. CLOSING: Once done, say: "Sharp! I've sent that to the boss. They are currently busy with a client but will review and confirm shortly. 🤙"
-
-RULES:
-- Handle Both: Be ready for someone who wants to visit the studio OR someone who needs a gazebo set up in their yard.
-- Be Precise: If they ask for a time, give them specific slots (e.g. 10:00 or 14:00).
+        return contextHeader + `
+[GOAL] Handle studio bookings OR mobile call-outs.
+[FLOW]
+1. Detect Intent: Fixed appointment vs. Mobile service.
+2. If mobile: Ask for photo/location first.
+3. If fixed: Go straight to availability and booking.
 `;
     }
 }
@@ -96,17 +73,14 @@ RULES:
 async function handleIncomingMessage(userPhone, messageText, businessId) {
     console.log(`🤖 AI Processing for ${userPhone} (Biz: ${businessId || 'None'})`);
     const resolvedBizId = businessId || process.env.DEFAULT_BUSINESS_ID;
-    const key = process.env.GEMINI_API_KEY || "";
-    console.log(`🔑 Using Key: ${key.slice(0, 4)}...${key.slice(-4)} (Length: ${key.length})`);
+    const cleanPhone = userPhone.replace(/\D/g, '');
 
-    // 2. LOAD STATE
+    // 1. Load State & Context
     let state = { metadata: { history: [] } };
     let businessName = "Default Business";
     let profile = null;
 
     if (resolvedBizId) {
-        const cleanPhone = userPhone.replace(/\D/g, '');
-        // Fetch Context + State
         const { data: stateData } = await supabase
             .from('conversation_states')
             .select('*')
@@ -114,7 +88,6 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
             .maybeSingle();
         if (stateData) state = stateData;
 
-        // Fetch Business Context
         const { data: profileData } = await supabase
             .from('profiles')
             .select('business_name, role_type, role_category')
@@ -122,89 +95,86 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
             .single();
 
         profile = profileData;
-        if (profile) {
-            businessName = profile.business_name;
-            state.businessRole = profile.role_type || profile.role_category;
-        }
+        if (profile) businessName = profile.business_name;
     }
 
-    // Recover History
+    // 2. Prepare System Instruction
+    const systemPrompt = getSystemInstruction({
+        name: businessName,
+        role: profile?.role_type,
+        category: profile?.role_category
+    });
+
+    // 3. Initialize Model with Static System Instruction
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        systemInstruction: systemPrompt
+    });
+
+    // 4. Recovery & Mapping History
     let history = state.metadata?.history || [];
-    if (history.length > 20) history = history.slice(-20);
+    if (history.length > 30) history = history.slice(-30);
 
     const chatHistory = history.map(h => ({
         role: h.role === 'ai' ? 'model' : 'user',
         parts: [{ text: h.text }]
     }));
 
-    if (chatHistory.length === 0) {
-        chatHistory.push({ role: "user", parts: [{ text: "System Context: User Phone is " + userPhone }] });
-    }
-
-    const chat = getModel().startChat({
+    // 5. Start Chat
+    const chat = model.startChat({
         history: chatHistory,
-        generationConfig: { maxOutputTokens: 1000 }
+        generationConfig: { maxOutputTokens: 1000, temperature: 0.7 }
     });
-
-    const systemPrompt = getSystemInstruction({
-        name: businessName,
-        role: profile?.role_type,
-        category: profile?.role_category
-    });
-    let fullPrompt = messageText;
-
-    // Always prepend system context to ensure it stays on track
-    fullPrompt = `${systemPrompt}\n\nUser: ${messageText}`;
 
     try {
-        const aiPromise = chat.sendMessage(fullPrompt);
+        const aiPromise = chat.sendMessage(messageText);
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 30000));
 
         const result = await Promise.race([aiPromise, timeoutPromise]);
         let text = result.response.text();
-        console.log("🤖 AI Raw Response Text:", text);
+        console.log("🤖 AI Response:", text);
 
         let finalReply = text;
 
-        // TOOL CALL: checkAvailability
+        // --- TOOL HANDLING ---
+
+        // 1. checkAvailability
         if (text.includes("checkAvailability")) {
             const dateMatch = messageText.match(/tomorrow|today|monday|tuesday|wednesday|thursday|friday|\d{4}-\d{2}-\d{2}/i);
-            if (dateMatch) {
-                const slots = await calendar.generateSlots(dateMatch[0]);
-                const toolResult = await chat.sendMessage(`(System Tool Output): ${JSON.stringify(slots)}`);
-                finalReply = toolResult.response.text();
+            const targetDate = dateMatch ? dateMatch[0] : 'tomorrow';
+
+            try {
+                const slots = await calendar.generateSlots(targetDate);
+                const toolResponse = await chat.sendMessage(`(System Tool Output: checkAvailability): Found following slots for ${targetDate}: ${JSON.stringify(slots)}. Please present these to the user or ask for details.`);
+                finalReply = toolResponse.response.text();
+            } catch (calErr) {
+                console.error("Calendar Error:", calErr);
+                const toolResponse = await chat.sendMessage(`(System Error): The calendar system is currently experiencing a technical delay. Please inform the user correctly and offer to take a priority request.`);
+                finalReply = toolResponse.response.text();
             }
         }
 
-        // TOOL CALL: createBookingRequest
+        // 2. createBookingRequest
         if (finalReply.includes("createBookingRequest")) {
-            console.log("🛠️ Detected Tool Call: createBookingRequest");
-            // Improved regex to handle various quoting styles and spacing
             const nameMatch = finalReply.match(/name\s*=\s*(?:['"]([^'"]+)['"]|(\w+))/);
             const timeMatch = finalReply.match(/datetime\s*=\s*(?:['"]([^'"]+)['"]|([^,)\s]+))/);
 
             const name = nameMatch ? (nameMatch[1] || nameMatch[2]) : null;
             let datetime = timeMatch ? (timeMatch[1] || timeMatch[2]) : null;
 
-            console.log(`🔍 Extracted: name=${name}, datetime=${datetime}`);
-
             if (name && datetime) {
-                // FALLBACK: If AI sends a relative date instead of ISO, let's log it
                 const res = await bookings.addRequest(name, datetime, userPhone, resolvedBizId);
-
-                if (res.error) {
-                    console.error("❌ Booking Tool Error:", res.error);
-                    finalReply = `I tried to book that, but: ${res.error}`;
-                } else {
+                if (!res.error) {
                     const isMedical = profile?.role_type === 'Doctor' || profile?.role_category === 'professional';
-                    finalReply = `Great! I've sent a request for ${res.datetime}. ${isMedical ? '📝 I\'ve also sent a registration form below—please fill it out and sign to finalize your appointment.' : 'You\'ll receive a confirmation soon!'}`;
+                    finalReply = `Perfect, ${name}! I've sent that request through for ${res.formatted_time || datetime}. 🤙 ${isMedical ? '\n\n📝 I\'ve also sent a registration form below—please fill it out and sign to finalize your appointment.' : 'Expect a confirmation from us shortly!'}`;
+                } else {
+                    finalReply = `I hit a snag while saving your booking: ${res.error}. Please try one more time?`;
                 }
-            } else {
-                console.warn("⚠️ Tool call detected but extraction failed. Reply:", finalReply);
             }
         }
 
-        // Update History & Save State
+        // 6. Update History & Save State
         history.push({ role: 'user', text: messageText });
         history.push({ role: 'ai', text: finalReply });
 
@@ -214,12 +184,11 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
         return finalReply;
 
     } catch (e) {
-        console.error("AI Error Detailed:", e);
-        const errorMsg = e.message || "Unknown error";
-        if (errorMsg.includes("429") || errorMsg.includes("quota")) {
-            return "Heita! I'm a bit overwhelmed with messages right now. 😅 Please give me about 30 seconds to catch my breath and then try that again. Sorry for the wait! 🤙";
+        console.error("AI End-to-End Error:", e);
+        if (e.message.includes("429") || e.message.includes("quota")) {
+            return "Heita! I'm a bit overwhelmed right now. 😅 Give me 30 seconds and try again? Sharp! 🤙";
         }
-        return "I'm having a small technical hiccup. Please try again in a moment. Sharp! 🤙";
+        return "Oops! I had a little technical hiccup. Please try sending that again? Sharp! 🤙";
     }
 }
 

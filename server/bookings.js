@@ -78,8 +78,8 @@ async function addRequest(name, datetime, phone, businessId) {
         const alertMsg = `Aweh Boss! New Booking Request from ${name} for ${new Date(datetime).toLocaleString()}.\n\nReply "#${data.id} ok" to confirm or "#${data.id} no" to reject.`;
 
         await client.messages.create({
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: `whatsapp:${profile.phone_number}`,
+            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
+            to: `whatsapp:${profile.phone_number.replace('whatsapp:', '')}`,
             body: alertMsg
         }).catch(e => console.error("Failed to alert owner:", e));
     }
