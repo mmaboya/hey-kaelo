@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, User, Clock, ChevronRight, FileText, Paperclip, History, ExternalLink } from 'lucide-react';
+import { Calendar, User, Clock, ChevronRight, FileText, Paperclip, History, ExternalLink, MessageSquare } from 'lucide-react';
 
 const AppointmentDetails = ({ booking, onClose }) => {
     const [history, setHistory] = useState([]);
+    const [chatHistory, setChatHistory] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loadingChat, setLoadingChat] = useState(true);
 
     useEffect(() => {
         const fetchHistory = async () => {
@@ -18,7 +20,27 @@ const AppointmentDetails = ({ booking, onClose }) => {
             setHistory(data || []);
             setLoading(false);
         };
+
+        const fetchConversation = async () => {
+            setLoadingChat(true);
+            try {
+                const { data } = await supabase
+                    .from('conversation_states')
+                    .select('*')
+                    .eq('phone_number', booking.customer_phone)
+                    .eq('business_id', booking.business_id)
+                    .single();
+
+                setChatHistory(data);
+            } catch (err) {
+                console.log('No chat history for this client yet');
+            } finally {
+                setLoadingChat(false);
+            }
+        };
+
         fetchHistory();
+        fetchConversation();
     }, [booking]);
 
     return (
@@ -59,6 +81,42 @@ const AppointmentDetails = ({ booking, onClose }) => {
                                 </span>
                             </div>
                         </div>
+                    </section>
+
+                    {/* Chat History Section */}
+                    <section>
+                        <h3 className="text-sm font-black uppercase tracking-widest text-secondary-400 mb-4 flex items-center gap-2">
+                            <MessageSquare className="w-4 h-4" /> WhatsApp Conversation
+                        </h3>
+                        {loadingChat ? (
+                            <div className="py-8 text-center text-gray-400 italic text-sm">Syncing chat log...</div>
+                        ) : chatHistory?.metadata?.history ? (
+                            <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+                                <div className="max-h-[300px] overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                                    {chatHistory.metadata.history.map((msg, i) => (
+                                        <div key={i} className={`flex ${msg.role === 'ai' || msg.role === 'model' ? 'justify-start' : 'justify-end'}`}>
+                                            <div className={`max-w-[85%] p-3 rounded-xl text-xs ${msg.role === 'ai' || msg.role === 'model'
+                                                    ? 'bg-white text-secondary-900 border border-gray-100 rounded-tl-none'
+                                                    : 'bg-primary-600 text-white rounded-tr-none'
+                                                }`}>
+                                                {msg.text}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="p-3 bg-white border-t border-gray-50 flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Live log via WhatsApp</span>
+                                    <button className="text-[10px] font-black uppercase tracking-widest text-primary-600 hover:text-primary-700 flex items-center gap-1">
+                                        View Full Thread <ExternalLink className="w-2.5 h-2.5" />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="py-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100 flex flex-col items-center justify-center text-gray-400">
+                                <MessageSquare className="w-8 h-8 mb-2 opacity-20" />
+                                <p className="text-xs font-medium">No chat history found for this number</p>
+                            </div>
+                        )}
                     </section>
 
                     {/* Attachments Section */}
