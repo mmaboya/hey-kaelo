@@ -452,60 +452,59 @@ const Dashboard = () => {
                                                         <MessageSquare className="w-4 h-4" />
                                                     </button>
                                                 </div>
-                                                <p className="text-[10px] text-primary-500 italic">This connects your personal WhatsApp to Kaelo's command center.</p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="grid lg:grid-cols-2 gap-6">
-                                <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-10 min-h-[500px]">
-                                    <AppointmentGrid businessId={user.id} />
-                                </div>
-
-                                {/* Pending Booking Requests (New) */}
-                                <div className="bg-orange-50 rounded-2xl shadow-sm border border-orange-100 overflow-hidden flex flex-col">
-                                    <div className="p-6 border-b border-orange-100 flex justify-between items-center">
-                                        <h2 className="text-lg font-bold text-orange-900">Pending Requests ⏳</h2>
-                                        <div className="flex gap-2">
-                                            <span className="bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 rounded-full">Action Required</span>
-                                        </div>
-                                    </div>
-                                    <div className="divide-y divide-orange-100 overflow-y-auto flex-1">
-                                        <RequestList businessId={user.id} />
-                                    </div>
-                                </div>
+                        <div className="grid lg:grid-cols-2 gap-6">
+                            <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-10 min-h-[500px]">
+                                <AppointmentGrid businessId={user.id} />
                             </div>
 
-                            {/* Recent Activity */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                                <div className="p-6 border-b border-gray-50 flex justify-between items-center">
-                                    <h2 className="text-lg font-bold text-secondary-900">Recent Activity</h2>
-                                    <button className="text-sm font-medium text-primary-600 hover:text-primary-700">View All</button>
+                            {/* Pending Booking Requests (New) */}
+                            <div className="bg-orange-50 rounded-2xl shadow-sm border border-orange-100 overflow-hidden flex flex-col">
+                                <div className="p-6 border-b border-orange-100 flex justify-between items-center">
+                                    <h2 className="text-lg font-bold text-orange-900">Pending Requests ⏳</h2>
+                                    <div className="flex gap-2">
+                                        <span className="bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 rounded-full">Action Required</span>
+                                    </div>
                                 </div>
-                                <div className="divide-y divide-gray-50">
-                                    {activity.length > 0 ? activity.map((item, index) => (
-                                        <div key={index} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${item.color}`}>
-                                                <item.icon className="w-5 h-5" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-secondary-900">{item.title}</p>
-                                                <p className="text-sm text-secondary-500 truncate">{item.desc}</p>
-                                            </div>
-                                            <span className="text-xs text-secondary-400 whitespace-nowrap">{item.time}</span>
-                                        </div>
-                                    )) : (
-                                        <div className="p-8 text-center text-gray-400 italic">No recent activity.</div>
-                                    )}
+                                <div className="divide-y divide-orange-100 overflow-y-auto flex-1">
+                                    <RequestList businessId={user.id} />
                                 </div>
                             </div>
-                        </>
-                        )
-            }
-                    </div >
-            );
+                        </div>
+
+                        {/* Recent Activity */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="p-6 border-b border-gray-50 flex justify-between items-center">
+                                <h2 className="text-lg font-bold text-secondary-900">Recent Activity</h2>
+                                <button className="text-sm font-medium text-primary-600 hover:text-primary-700">View All</button>
+                            </div>
+                            <div className="divide-y divide-gray-50">
+                                {activity.length > 0 ? activity.map((item, index) => (
+                                    <div key={index} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${item.color}`}>
+                                            <item.icon className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-secondary-900">{item.title}</p>
+                                            <p className="text-sm text-secondary-500 truncate">{item.desc}</p>
+                                        </div>
+                                        <span className="text-xs text-secondary-400 whitespace-nowrap">{item.time}</span>
+                                    </div>
+                                )) : (
+                                    <div className="p-8 text-center text-gray-400 italic">No recent activity.</div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
+        </div>
+    );
 };
 
-            export default Dashboard;
+export default Dashboard;
