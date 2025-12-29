@@ -11,14 +11,65 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 import { supabase } from '../lib/supabase';
 
+const ChatTooltip = ({ phone, name }) => {
+    const [history, setHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            const { data } = await supabase
+                .from('conversation_states')
+                .select('metadata')
+                .eq('phone_number', phone)
+                .maybeSingle();
+
+            if (data && data.metadata?.history) {
+                setHistory(data.metadata.history.slice(-5)); // Show last 5 messages
+            }
+            setLoading(false);
+        };
+        fetchHistory();
+    }, [phone]);
+
+    return (
+        <div className="absolute bottom-full left-0 mb-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-50">
+                <div className="w-8 h-8 rounded-full bg-secondary-900 flex items-center justify-center text-white text-xs font-bold">
+                    {name.charAt(0)}
+                </div>
+                <div>
+                    <p className="text-xs font-bold text-secondary-900">{name}</p>
+                    <p className="text-[10px] text-gray-400 font-medium">WhatsApp Context</p>
+                </div>
+            </div>
+            {loading ? (
+                <div className="py-4 text-center text-[10px] text-gray-400 italic">Loading conversation...</div>
+            ) : history.length > 0 ? (
+                <div className="space-y-3">
+                    {history.map((msg, i) => (
+                        <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                            <div className={`px-3 py-2 rounded-xl text-[11px] leading-relaxed max-w-[90%] shadow-sm ${msg.role === 'user' ? 'bg-orange-600 text-white rounded-tr-none' : 'bg-gray-100 text-gray-700 rounded-tl-none'}`}>
+                                {msg.text}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="py-4 text-center text-[10px] text-gray-400 italic">No chat history found.</div>
+            )}
+            <div className="absolute top-full left-6 -mt-1 border-8 border-transparent border-t-white"></div>
+        </div>
+    );
+};
+
 const RequestList = ({ businessId }) => {
     const [bookings, setBookings] = useState([]);
+    const [hoveredId, setHoveredId] = useState(null);
     const { user } = useAuth();
 
     useEffect(() => {
         if (!user || !businessId) return;
 
-        // 1. Fetch Initial Data
         const fetchBookings = async () => {
             const { data, error } = await supabase
                 .from('bookings')
@@ -33,7 +84,6 @@ const RequestList = ({ businessId }) => {
 
         fetchBookings();
 
-        // 2. Subscribe to Realtime Changes
         const channel = supabase
             .channel(`realtime-bookings-${businessId}`)
             .on('postgres_changes', {
@@ -42,7 +92,6 @@ const RequestList = ({ businessId }) => {
                 table: 'bookings',
                 filter: `business_id=eq.${businessId}`
             }, (payload) => {
-                console.log('Realtime change received!', payload);
                 fetchBookings();
             })
             .subscribe();
@@ -51,9 +100,6 @@ const RequestList = ({ businessId }) => {
     }, [user, businessId]);
 
     const handleAction = async (id, action) => {
-        // Optimistic Update (optional)
-
-        // 1. Update in Supabase
         const { error } = await supabase
             .from('bookings')
             .update({ status: action })
@@ -64,11 +110,6 @@ const RequestList = ({ businessId }) => {
             return;
         }
 
-        // 2. Notify Server to send WhatsApp (Keep this server-side for security/Twilio)
-        // We pass the ID and action, server handles the rest.
-        // Note: Server currently fetches booking from DB. 
-        // We might need to ensure Server has permission to read it if RLS is on. 
-        // (Server uses Service Role so it's fine).
         try {
             await fetch(`${API_URL}/api/bookings/${id}/respond`, {
                 method: 'POST',
@@ -83,9 +124,18 @@ const RequestList = ({ businessId }) => {
     if (bookings.length === 0) return <div className="p-6 text-center text-orange-700">No pending requests. Great job! 🎉</div>;
 
     return (
-        <div>
+        <div className="relative">
             {bookings.map((booking) => (
-                <div key={booking.id} className="p-6 border-b last:border-0 hover:bg-orange-50/30 transition-colors">
+                <div
+                    key={booking.id}
+                    className="group p-6 border-b last:border-0 hover:bg-orange-50/30 transition-colors relative"
+                    onMouseEnter={() => setHoveredId(booking.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                >
+                    {hoveredId === booking.id && (
+                        <ChatTooltip phone={booking.customer_phone} name={booking.customer_name} />
+                    )}
+
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div className="flex gap-4 items-start">
                             <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xl flex-shrink-0">
@@ -94,6 +144,10 @@ const RequestList = ({ businessId }) => {
                             <div>
                                 <div className="flex items-center gap-2 mb-1">
                                     <p className="font-bold text-secondary-900 text-lg">{booking.customer_name || 'Unknown'}</p>
+                                    <div className="p-1 px-2 rounded-full border border-orange-200 text-orange-600 bg-orange-50 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <MessageSquare className="w-3 h-3" />
+                                        <span className="text-[10px] font-bold uppercase tracking-widest">Hover for Context</span>
+                                    </div>
                                     {booking.form_signed_at && (
                                         <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">
                                             <CheckCircle className="w-3 h-3" /> Signed
@@ -128,15 +182,15 @@ const RequestList = ({ businessId }) => {
                                         {booking.signature_url && (
                                             <div className="sm:col-span-2 mt-2">
                                                 <p className="text-[10px] uppercase text-gray-400 font-bold mb-1">Handwritten Signature</p>
-                                                <div className="relative group w-32 h-20 bg-white border rounded-lg overflow-hidden cursor-pointer hover:border-orange-400 transition-colors"
+                                                <div className="relative group/sig w-32 h-20 bg-white border rounded-lg overflow-hidden cursor-pointer hover:border-orange-400 transition-colors"
                                                     onClick={() => window.open(booking.signature_url, '_blank')}>
                                                     <img
                                                         src={booking.signature_url}
                                                         alt="Signature"
                                                         className="w-full h-full object-contain p-1"
                                                     />
-                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center transition-all">
-                                                        <Search className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                                                    <div className="absolute inset-0 bg-black/0 group-hover/sig:bg-black/10 flex items-center justify-center transition-all">
+                                                        <Search className="w-4 h-4 text-white opacity-0 group-hover/sig:opacity-100" />
                                                     </div>
                                                 </div>
                                             </div>
