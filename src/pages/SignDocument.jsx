@@ -12,6 +12,16 @@ const SignDocument = () => {
     const [complete, setComplete] = useState(false);
 
     useEffect(() => {
+        if (requestId === 'preview') {
+            setRequest({
+                title: 'Service Agreement (Preview)',
+                content: 'This is a preview of the document your clients will see. They can read your terms, snap a photo of their signature, and confirm. All in seconds! 🤙',
+                profiles: { business_name: 'Your Awesome Business' }
+            });
+            setLoading(false);
+            return;
+        }
+
         const fetchRequest = async () => {
             const { data, error } = await supabase
                 .from('document_requests')
@@ -36,6 +46,14 @@ const SignDocument = () => {
     const handleSign = async () => {
         if (!signature) return;
         setSigning(true);
+
+        if (requestId === 'preview') {
+            setTimeout(() => {
+                setComplete(true);
+                setSigning(false);
+            }, 1500);
+            return;
+        }
 
         try {
             // 1. Upload Signature to Storage (Optional, let's assume we have a 'signatures' bucket)
@@ -146,8 +164,8 @@ const SignDocument = () => {
                             disabled={!signature || signing}
                             onClick={handleSign}
                             className={`w-full py-5 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-3 shadow-xl ${signature && !signing
-                                    ? 'bg-primary-500 text-white hover:bg-primary-600 shadow-primary/20 scale-100'
-                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed scale-[0.98]'
+                                ? 'bg-primary-500 text-white hover:bg-primary-600 shadow-primary/20 scale-100'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed scale-[0.98]'
                                 }`}
                         >
                             {signing ? 'Signing...' : 'Confirm & Sign Document'}
