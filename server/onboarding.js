@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const FLOWS = {
     root: {
         step: 'root',
-        message: "Aweh! I'm Kaelo. 👋 I'll help you manage your bookings.\n\nHow do you usually work?\n1. *Fixed Appointments* (Work from a set location/times)\n2. *On-the-Go / Call-outs* (You go to customers or take walk-ins)\n3. *Both / Mixed* (Handle both scheduled and mobile jobs)\n\nReply *1*, *2*, or *3*.",
+        message: "Aweh! I'm your HeyKaelo digital assistant. 👋 I'll help you handle your bookings and grow your business.\n\nTo get started, how do you usually work?\n1. *Fixed Appointments* (Studio, Rooms, or set location)\n2. *On-the-Go* (Call-outs, Deliveries, or Mobile services)\n3. *Both / Mixed* (Best of both worlds!)\n\nReply *1*, *2*, or *3*.",
         transitions: {
             '1': 'pro_intro',
             'fixed': 'pro_intro',
@@ -16,46 +16,46 @@ const FLOWS = {
             'mixed': 'hybrid_intro'
         }
     },
-    // --- PATH A: PROFESSIONAL ---
+    // --- PATH A: FIXED ---
     pro_intro: {
         next: 'pro_business_name',
-        message: "Great choice. 👍 I’ll act as your digital receptionist, checking your calendar and gathering client info so you can focus on your work."
+        message: "Great choice! 🗓️ I’ll act as your digital receptionist. I’ll check your Google/Outlook calendar and even send your clients a registration form automatically so you can focus on your craft."
     },
     pro_business_name: {
         step: 'pro_business_name',
-        message: "What’s the name of your practice or firm?",
+        message: "First, what’s the name of your business or practice?",
         saveField: 'business_name'
     },
     pro_role_type: {
         step: 'pro_role_type',
-        message: "What type of professional are you?\n(e.g., GP, Physio, Consultant, Psychologist, Other)",
+        message: "Sharp. What do you do?\n(e.g., Doctor, Physio, Nail Tech, Tutor)",
         saveField: 'role_type'
     },
     pro_working_days: {
         step: 'pro_working_days',
-        message: "Sharp! Last step: When are you usually available for sessions? (e.g., Mon-Fri 08:00–17:00)",
+        message: "Almost there! 🕒 When are you usually available for sessions? (e.g., Mon-Fri 08:00–17:00)",
         saveField: 'working_days',
         finalize: 'professional'
     },
 
-    // --- PATH B: CALL-OUT / MOBILE ---
+    // --- PATH B: ON-THE-GO ---
     trade_intro: {
         next: 'trade_business_name',
-        message: "Nice choice! 🛠️ I'll help you avoid double-bookings and gather job details (like photos and location) before you even talk to the customer."
+        message: "Nice! Let's get to work. 🛠️ I'll help you qualify jobs by gathering job photos and location pins before you even leave the house. No more wasted trips!"
     },
     trade_business_name: {
         step: 'trade_business_name',
-        message: "What's your business name?\n(e.g., Sipho's Sparky Services)",
+        message: "What's the name of your business?\n(e.g., Sipho's Sparky Services)",
         saveField: 'business_name'
     },
     trade_role_type: {
         step: 'trade_role_type',
-        message: "Sharp. What trade/service are you in?\n(e.g., Electrician, Plumber, Barber)",
+        message: "What trade or service do you offer?\n(e.g., Electrician, Plumber, Handyman)",
         saveField: 'role_type'
     },
     trade_service_area: {
         step: 'trade_service_area',
-        message: "Which areas do you mostly cover? (e.g., Sandton, Soweto, Randburg)",
+        message: "Which areas do you cover? (e.g., Sandton, Soweto, Centurion)",
         saveField: 'service_area',
         finalize: 'tradesperson'
     },
@@ -63,7 +63,7 @@ const FLOWS = {
     // --- PATH C: HYBRID / MIXED ---
     hybrid_intro: {
         next: 'hybrid_business_name',
-        message: "The best of both worlds! 🚀 I'll handle your fixed bookings AND help you qualify call-out jobs on the move."
+        message: "The ultimate hustle! 🚀 I'll handle your studio bookings AND help you qualify call-out jobs on the move. I'll detect what the customer needs automatically."
     },
     hybrid_business_name: {
         step: 'hybrid_business_name',
@@ -72,12 +72,12 @@ const FLOWS = {
     },
     hybrid_role_type: {
         step: 'hybrid_role_type',
-        message: "What service do you provide?\n(e.g., Beauty Salon, Tailor, Sound Engineer)",
+        message: "What service do you provide?\n(e.g., Beauty Salon, Tailor, Sound Tech)",
         saveField: 'role_type'
     },
     hybrid_service_area: {
         step: 'hybrid_service_area',
-        message: "Where are you based or which areas do you cover? (e.g., Sandton & Midrand)",
+        message: "Where are you based or which areas do you cover? (e.g., Midrand & Fourways)",
         saveField: 'service_area',
         finalize: 'hybrid'
     }
@@ -215,11 +215,11 @@ async function handleOnboarding(userPhone, messageText, state) {
 
         // Final Message
         if (nextStepId === 'finalize_pro') {
-            return "You’re all set! ✅ I've set up your assistant. When clients text this number, I'll handle the booking and registration for you. Sharp! 🤙";
+            return "You’re all set! ✅ I've set up your HeyKaelo assistant. When clients text this number, I'll handle the booking and send them your registration form automatically. Let's get those slots filled! Sharp! 🤙";
         } else if (nextStepId === 'finalize_trade') {
-            return "You’re ready to hustle! 🚀 When customers text, I'll ask for a photo of the issue and their location. I'll send it all here, and you just reply #ok to accept. Sharp! 🤙";
+            return "You’re ready to hustle! 🚀 When customers text, I'll ask for their job photo and location pin. I'll send it all here, and you just reply #ok to accept. No more time wasted on the road! Sharp! 🤙";
         } else {
-            return "You're all set with the best of both! 🚀 I'll handle your fixed bookings AND help you qualify new jobs on the move. Let's get to work. Sharp! 🤙";
+            return "You're all set with the best of both worlds! 🚀 I'll handle your fixed studio bookings AND help you qualify new jobs on the move. HeyKaelo is here to make your life easier. Let's get to work! Sharp! 🤙";
         }
 
     } else if (nextStepId) {
