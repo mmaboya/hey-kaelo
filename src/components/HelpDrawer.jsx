@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HelpCircle, X, MessageSquare, AlertTriangle, BookOpen, Camera, Copy, CheckCircle, Send, ArrowRight, Shield } from 'lucide-react';
+import { HelpCircle, X, MessageSquare, AlertTriangle, BookOpen, Camera, Copy, CheckCircle, Send, ArrowRight, Shield, ArrowLeft } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 const HelpDrawer = () => {
@@ -17,19 +17,90 @@ const HelpDrawer = () => {
         ts: new Date().toISOString()
     };
 
+    const [isChatting, setIsChatting] = useState(false);
+    const [messages, setMessages] = useState([]);
+    const [inputValue, setInputValue] = useState('');
+    const [ticketId, setTicketId] = useState(null);
+    const [isSending, setIsSending] = useState(false);
+
+    const handleStartChat = () => {
+        setIsChatting(true);
+        if (messages.length === 0) {
+            setMessages([{
+                role: 'kaelo',
+                text: "Sharp! 👋 I'm Kaelo. I can see you're on the dashboard. What's bothering you today?"
+            }]);
+        }
+    };
+
+    const handleQuickFix = async (fixType) => {
+        setIsChatting(true);
+        const fixMessages = {
+            whatsapp: "Checking your WhatsApp connection now... 🔄",
+            reset: "I'm resetting your AI conversation state to clear any confusion... 🧠"
+        };
+
+        const initialMsg = fixMessages[fixType] || "Let me look into that for you.";
+        setMessages(prev => [...prev, { role: 'user', text: fixType }, { role: 'kaelo', text: initialMsg }]);
+
+        // Trigger actual triage for the quick fix
+        try {
+            const response = await fetch('/api/support/triage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: `Internal Quick Fix Triggered: ${fixType}`,
+                    context: { ...diagnostics, quick_fix: fixType }
+                })
+            });
+            const data = await response.json();
+            setMessages(prev => [...prev, { role: 'kaelo', text: data.reply }]);
+            setTicketId(data.ticketId);
+        } catch (error) {
+            setMessages(prev => [...prev, { role: 'kaelo', text: "⚠️ Sorry, I hit a snag. Let's try again or report it." }]);
+        }
+    };
+
+    const sendMessage = async () => {
+        if (!inputValue.trim() || isSending) return;
+
+        const userMsg = inputValue;
+        setInputValue('');
+        setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+        setIsSending(true);
+
+        try {
+            const response = await fetch('/api/support/triage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ticketId,
+                    message: userMsg,
+                    context: diagnostics
+                })
+            });
+            const data = await response.json();
+            setMessages(prev => [...prev, { role: 'kaelo', text: data.reply }]);
+            setTicketId(data.ticketId);
+        } catch (error) {
+            setMessages(prev => [...prev, { role: 'kaelo', text: "I'm having a bit of trouble connecting to my support brain. Ake uzame futhi? (Try again?)" }]);
+        } finally {
+            setIsSending(false);
+        }
+    };
+
     const handleCapture = async () => {
         setIsCapturing(true);
         try {
             const canvas = await html2canvas(document.body, {
                 useCORS: true,
-                scale: 0.5, // Reduced scale for faster upload
+                scale: 0.5,
                 ignoreElements: (el) => el.classList.contains('help-drawer-overlay') || el.closest('.help-drawer-overlay')
             });
             const dataUrl = canvas.toDataURL('image/webp', 0.8);
             setCapturedImage(dataUrl);
         } catch (error) {
             console.error("Screenshot failed:", error);
-            alert("Could not capture screenshot. Please try again.");
         } finally {
             setIsCapturing(false);
         }
@@ -105,7 +176,53 @@ const HelpDrawer = () => {
                         </div>
 
                         {/* Body */}
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar relative">
+                            {/* Chat Layer */}
+                            {isChatting && (
+                                <div className="absolute inset-0 bg-white z-10 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                    <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+                                        <button onClick={() => setIsChatting(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                                            <ArrowLeft className="w-4 h-4 text-gray-400" />
+                                        </button>
+                                        <span className="text-sm font-bold text-secondary-900">Chat with Kaelo</span>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                                        {messages.map((m, i) => (
+                                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-secondary-900 text-white rounded-tr-none' : 'bg-gray-100 text-secondary-900 rounded-tl-none'
+                                                    }`}>
+                                                    {m.text}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {isSending && (
+                                            <div className="flex justify-start">
+                                                <div className="bg-gray-100 p-3 rounded-2xl rounded-tl-none animate-pulse text-gray-400 text-xs">
+                                                    Kaelo is thinking...
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="p-4 border-t border-gray-100 flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={inputValue}
+                                            onChange={(e) => setInputValue(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                                            placeholder="Type message..."
+                                            className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        />
+                                        <button
+                                            onClick={sendMessage}
+                                            disabled={isSending}
+                                            className="w-10 h-10 bg-secondary-900 text-white rounded-xl flex items-center justify-center hover:bg-secondary-800 disabled:opacity-50"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {activeTab === 'fix' && (
                                 <div className="space-y-6">
                                     <div className="bg-primary-50 border border-primary-100 p-6 rounded-2xl">
@@ -113,7 +230,10 @@ const HelpDrawer = () => {
                                         <p className="text-sm text-primary-600 leading-relaxed mb-4">
                                             Kaelo is trained to debug booking issues and account settings in real-time.
                                         </p>
-                                        <button className="w-full bg-white border border-primary-200 py-3 rounded-xl text-sm font-bold text-primary-700 flex items-center justify-center gap-2 hover:shadow-md transition-all">
+                                        <button
+                                            onClick={handleStartChat}
+                                            className="w-full bg-white border border-primary-200 py-3 rounded-xl text-sm font-bold text-primary-700 flex items-center justify-center gap-2 hover:shadow-md transition-all active:scale-[0.98]"
+                                        >
                                             Start Support Chat <ArrowRight className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -121,11 +241,17 @@ const HelpDrawer = () => {
                                     <div className="space-y-4">
                                         <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quick Fixes</h4>
                                         <div className="grid grid-cols-1 gap-2">
-                                            <button className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left text-sm font-bold text-secondary-900 flex items-center justify-between group">
+                                            <button
+                                                onClick={() => handleQuickFix('whatsapp')}
+                                                className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left text-sm font-bold text-secondary-900 flex items-center justify-between group"
+                                            >
                                                 <span>WhatsApp Messages not delivering</span>
                                                 <ChevronRightIcon className="w-4 h-4 text-gray-300 group-hover:text-secondary-900" />
                                             </button>
-                                            <button className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left text-sm font-bold text-secondary-900 flex items-center justify-between group">
+                                            <button
+                                                onClick={() => handleQuickFix('reset')}
+                                                className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left text-sm font-bold text-secondary-900 flex items-center justify-between group"
+                                            >
                                                 <span>Reset AI Conversation State</span>
                                                 <ChevronRightIcon className="w-4 h-4 text-gray-300 group-hover:text-secondary-900" />
                                             </button>
