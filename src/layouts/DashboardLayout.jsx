@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Calendar, Users, Settings, LogOut, Menu, X, Bell } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Settings, LogOut, Menu, X, Bell, FileText } from 'lucide-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 const DashboardLayout = () => {
@@ -10,6 +10,7 @@ const DashboardLayout = () => {
         { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
         { name: 'Bookings', href: '/dashboard/bookings', icon: Calendar },
         { name: 'Clients', href: '/dashboard/clients', icon: Users },
+        { name: 'Documents', href: '/dashboard/documents', icon: FileText },
         { name: 'Settings', href: '/dashboard/settings', icon: Settings },
     ];
 
@@ -36,8 +37,8 @@ const DashboardLayout = () => {
                                     key={item.name}
                                     to={item.href}
                                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                            ? 'bg-primary-50 text-primary-700 shadow-sm'
-                                            : 'text-secondary-500 hover:bg-gray-50 hover:text-secondary-900'
+                                        ? 'bg-primary-50 text-primary-700 shadow-sm'
+                                        : 'text-secondary-500 hover:bg-gray-50 hover:text-secondary-900'
                                         }`}
                                 >
                                     <item.icon className={`w-5 h-5 ${isActive ? 'text-primary-600' : 'text-current'}`} />

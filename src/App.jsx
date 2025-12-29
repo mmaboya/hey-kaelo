@@ -13,6 +13,8 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import ProfileSettings from './components/dashboard/ProfileSettings';
 import Clients from './pages/Clients';
+import SignDocument from './pages/SignDocument';
+import DocumentRepository from './components/dashboard/DocumentRepository';
 
 // Marketing Website Layout
 const MarketingSite = () => {
@@ -60,6 +62,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/sign/:requestId" element={<SignDocument />} />
 
           {/* Protected Onboarding */}
           <Route path="/setup" element={
@@ -77,6 +80,7 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="bookings" element={<div className="p-4">Bookings Page (Coming Soon)</div>} />
             <Route path="clients" element={<Clients />} />
+            <Route path="documents" element={<ProtectedRoute><div className="p-8"><DocumentRepository businessId={useAuth().user?.id} /></div></ProtectedRoute>} />
             <Route path="settings" element={<ProfileSettings />} />
           </Route>
         </Routes>
