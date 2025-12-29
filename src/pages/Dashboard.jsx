@@ -370,92 +370,142 @@ const Dashboard = () => {
 
                         {/* Test & Link Generator Grid */}
                         <div className="grid lg:grid-cols-2 gap-6">
-                            {/* WhatsApp Link Generator (New) */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-fit">
-                                <h2 className="text-lg font-bold text-secondary-900 mb-4">📢 Get Your Booking Link</h2>
-                                <p className="text-sm text-secondary-500 mb-4">Share this link with customers so they can book you directly on WhatsApp.</p>
+                            {/* WhatsApp Invite Hub (Consolidated) */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
+                                            <MessageSquare className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-lg font-bold text-secondary-900">WhatsApp Invite Hub</h2>
+                                            <p className="text-[10px] text-secondary-500 font-medium uppercase tracking-wider">Expand your reach via WhatsApp</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500/50"></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500/20"></div>
+                                    </div>
+                                </div>
 
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-secondary-600 mb-1">Your Unique Slug</label>
-                                        <input
-                                            type="text"
-                                            value={profile?.slug || '...'}
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-gray-50 text-gray-700"
-                                            readOnly
-                                        />
-                                        <p className="text-xs text-gray-400 mt-1">Customers use this to find you on WhatsApp.</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Section A: Invite Customers */}
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                            <h3 className="text-xs font-black text-secondary-900 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                <Users className="w-3 h-3" /> Customer Booking Link
+                                            </h3>
+                                            <p className="text-xs text-secondary-500 mb-4 font-medium leading-relaxed">
+                                                Send this link to customers or put it in your Instagram bio.
+                                            </p>
+
+                                            <div className="space-y-3">
+                                                <div className="p-2.5 bg-white rounded-lg border border-gray-200 font-mono text-[10px] text-gray-500 truncate select-all">
+                                                    {whatsappLink}
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(whatsappLink);
+                                                            alert("Link copied to clipboard! 📋");
+                                                        }}
+                                                        className="h-9 rounded-lg border border-gray-200 text-secondary-700 text-xs font-bold hover:bg-white transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <Send className="w-3 h-3" /> Copy Link
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            const text = `Awe! You can now book your next appointment with ${profile?.business_name || 'me'} directly on WhatsApp: ${whatsappLink}`;
+                                                            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                                                        }}
+                                                        className="h-9 rounded-lg bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-sm shadow-green-100"
+                                                    >
+                                                        <MessageSquare className="w-3 h-3" /> WhatsApp
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 break-all font-mono text-sm text-gray-600">
-                                        {whatsappLink}
-                                    </div>
+                                    {/* Section B: Connect Admin Phone */}
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-primary-50 rounded-2xl border border-primary-100">
+                                            <h3 className="text-xs font-black text-primary-900 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                <TrendingUp className="w-3 h-3" /> Receive Notifications
+                                            </h3>
+                                            <p className="text-xs text-primary-700/80 mb-4 font-medium leading-relaxed">
+                                                Join the WhatsApp Sandbox to receive instant booking alerts and approve appointments.
+                                            </p>
 
-                                    <button
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(whatsappLink);
-                                            alert("Link copied to clipboard! 📋");
-                                        }}
-                                        className="h-10 px-6 rounded-lg bg-secondary-900 text-white font-medium hover:bg-secondary-800 transition-colors w-full flex items-center justify-center gap-2"
-                                    >
-                                        <Send className="w-4 h-4" /> Copy Link
-                                    </button>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-2 p-2.5 bg-white/50 rounded-xl border border-primary-200">
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] text-primary-400 font-bold uppercase tracking-tight">Step 1: Text "join {profile?.slug || 'biz'}" to:</p>
+                                                        <p className="text-sm font-black text-primary-900">+1 415 523 8886</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => window.open(`https://wa.me/14155238886?text=join%20${profile?.slug || 'setup'}`, '_blank')}
+                                                        className="w-8 h-8 rounded-lg bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 transition-colors"
+                                                    >
+                                                        <MessageSquare className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                                <p className="text-[10px] text-primary-500 italic">This connects your personal WhatsApp to Kaelo's command center.</p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-10 min-h-[500px]">
-                                <AppointmentGrid businessId={user.id} />
-                            </div>
-                        </div>
+                            <div className="grid lg:grid-cols-2 gap-6">
+                                <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-10 min-h-[500px]">
+                                    <AppointmentGrid businessId={user.id} />
+                                </div>
 
-                        {/* Pending Booking Requests (New) */}
-                        <div className="bg-orange-50 rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
-                            <div className="p-6 border-b border-orange-100 flex justify-between items-center">
-                                <h2 className="text-lg font-bold text-orange-900">Pending Requests ⏳</h2>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => window.location.reload()}
-                                        className="p-1 text-orange-600 hover:bg-orange-100 rounded-full transition-colors"
-                                        title="Refresh List"
-                                    >
-                                        <TrendingUp className="w-4 h-4 rotate-180" />
-                                    </button>
-                                    <span className="bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 rounded-full">Action Required</span>
+                                {/* Pending Booking Requests (New) */}
+                                <div className="bg-orange-50 rounded-2xl shadow-sm border border-orange-100 overflow-hidden flex flex-col">
+                                    <div className="p-6 border-b border-orange-100 flex justify-between items-center">
+                                        <h2 className="text-lg font-bold text-orange-900">Pending Requests ⏳</h2>
+                                        <div className="flex gap-2">
+                                            <span className="bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 rounded-full">Action Required</span>
+                                        </div>
+                                    </div>
+                                    <div className="divide-y divide-orange-100 overflow-y-auto flex-1">
+                                        <RequestList businessId={user.id} />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="divide-y divide-orange-100">
-                                <RequestList businessId={user.id} />
-                            </div>
-                        </div>
 
-                        {/* Recent Activity */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="p-6 border-b border-gray-50 flex justify-between items-center">
-                                <h2 className="text-lg font-bold text-secondary-900">Recent Activity</h2>
-                                <button className="text-sm font-medium text-primary-600 hover:text-primary-700">View All</button>
-                            </div>
-                            <div className="divide-y divide-gray-50">
-                                {activity.length > 0 ? activity.map((item, index) => (
-                                    <div key={index} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${item.color}`}>
-                                            <item.icon className="w-5 h-5" />
+                            {/* Recent Activity */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="p-6 border-b border-gray-50 flex justify-between items-center">
+                                    <h2 className="text-lg font-bold text-secondary-900">Recent Activity</h2>
+                                    <button className="text-sm font-medium text-primary-600 hover:text-primary-700">View All</button>
+                                </div>
+                                <div className="divide-y divide-gray-50">
+                                    {activity.length > 0 ? activity.map((item, index) => (
+                                        <div key={index} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${item.color}`}>
+                                                <item.icon className="w-5 h-5" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-secondary-900">{item.title}</p>
+                                                <p className="text-sm text-secondary-500 truncate">{item.desc}</p>
+                                            </div>
+                                            <span className="text-xs text-secondary-400 whitespace-nowrap">{item.time}</span>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-secondary-900">{item.title}</p>
-                                            <p className="text-sm text-secondary-500 truncate">{item.desc}</p>
-                                        </div>
-                                        <span className="text-xs text-secondary-400 whitespace-nowrap">{item.time}</span>
-                                    </div>
-                                )) : (
-                                    <div className="p-8 text-center text-gray-400 italic">No recent activity.</div>
-                                )}
+                                    )) : (
+                                        <div className="p-8 text-center text-gray-400 italic">No recent activity.</div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    </>
-                )
+                        </>
+                        )
             }
-        </div >
-    );
+                    </div >
+            );
 };
 
-export default Dashboard;
+            export default Dashboard;
