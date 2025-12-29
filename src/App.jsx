@@ -9,13 +9,18 @@ import WhatsNewSection from './components/WhatsNewSection';
 import WorkstyleGuide from './components/WorkstyleGuide';
 import Navbar from './components/Navbar';
 import HelpDrawer from './components/HelpDrawer';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import ProfileSettings from './components/dashboard/ProfileSettings';
 import Clients from './pages/Clients';
 import SignDocument from './pages/SignDocument';
 import DocumentRepository from './components/dashboard/DocumentRepository';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import Setup from './pages/Setup';
 
 // Marketing Website Layout
 const MarketingSite = () => {
@@ -38,12 +43,18 @@ const MarketingSite = () => {
   );
 };
 
-import { AuthProvider, useAuth } from './context/AuthContext';
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Setup from './pages/Setup';
-import { Navigate } from 'react-router-dom';
+// ----------------------------------------------------------------------
+// Wrapper Components
+// ----------------------------------------------------------------------
+
+const DocumentsPage = () => {
+  const { user } = useAuth();
+  return (
+    <div className="p-8">
+      <DocumentRepository businessId={user?.id} />
+    </div>
+  );
+};
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -79,9 +90,9 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<Dashboard />} />
-            <Route path="bookings" element={<div className="p-4">Bookings Page (Coming Soon)</div>} />
+            <Route path="bookings" element={<div className="p-4 text-center py-20 text-gray-400 font-medium">Bookings Management coming in the next update!</div>} />
             <Route path="clients" element={<Clients />} />
-            <Route path="documents" element={<ProtectedRoute><div className="p-8"><DocumentRepository businessId={useAuth().user?.id} /></div></ProtectedRoute>} />
+            <Route path="documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
             <Route path="settings" element={<ProfileSettings />} />
           </Route>
         </Routes>
