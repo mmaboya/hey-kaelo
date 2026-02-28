@@ -72,16 +72,9 @@ async function addRequest(name, datetime, phone, businessId) {
     // Notify Owner
     const { data: profile } = await supabase.from('profiles').select('phone_number').eq('id', resolvedBizId).single();
     if (profile && profile.phone_number) {
-        const twilio = require('twilio');
-        const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-        // Use the actual booking ID in the shortcut
+        const wa = require('./whatsapp');
         const alertMsg = `Aweh Boss! New Booking Request from ${name} for ${new Date(datetime).toLocaleString()}.\n\nReply "#${data.id} ok" to confirm or "#${data.id} no" to reject.`;
-
-        await client.messages.create({
-            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER.replace('whatsapp:', '')}`,
-            to: `whatsapp:${profile.phone_number.replace('whatsapp:', '')}`,
-            body: alertMsg
-        }).catch(e => console.error("Failed to alert owner:", e));
+        await wa.sendMessage(profile.phone_number, alertMsg).catch(e => console.error("Failed to alert owner:", e));
     }
 
     return {
