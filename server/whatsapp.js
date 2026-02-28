@@ -1,29 +1,24 @@
-// Meta WhatsApp Cloud API helper
-// Replaces Twilio - free up to 1,000 conversations/month
-// Required env vars: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN
+// Twilio WhatsApp helper
+// Required env vars: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER
+
+const twilio = require('twilio');
+
+function getClient() {
+    return twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+}
 
 async function sendMessage(to, body) {
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const client = getClient();
     const cleanTo = String(to).replace(/\D/g, '');
+    const cleanFrom = String(process.env.TWILIO_WHATSAPP_NUMBER).replace(/\D/g, '');
 
-    const response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            to: cleanTo,
-            type: 'text',
-            text: { body }
-        })
+    const message = await client.messages.create({
+        from: `whatsapp:+${cleanFrom}`,
+        to: `whatsapp:+${cleanTo}`,
+        body
     });
 
-    const data = await response.json();
-    if (!response.ok) throw new Error(`Meta API Error: ${JSON.stringify(data)}`);
-    return data;
+    return message;
 }
 
 module.exports = { sendMessage };

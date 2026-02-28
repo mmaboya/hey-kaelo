@@ -75,8 +75,8 @@ app.post('/api/send-whatsapp', async (req, res) => {
 
     try {
         const result = await wa.sendMessage(to, body);
-        console.log(`Message sent to ${to}:`, result.messages?.[0]?.id);
-        res.json({ success: true, messageId: result.messages?.[0]?.id });
+        console.log(`Message sent to ${to}:`, result.sid);
+        res.json({ success: true, messageId: result.sid });
     } catch (error) {
         console.error('Error sending message:', error);
         res.status(500).json({ error: 'Failed to send WhatsApp message.' });
@@ -143,45 +143,19 @@ app.post('/api/support/triage', async (req, res) => {
     }
 });
 
-// Webhook Verification (Meta requires GET endpoint to verify the webhook URL)
-app.get('/webhooks/whatsapp', (req, res) => {
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-
-    if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-        console.log('✅ WhatsApp Webhook verified');
-        return res.status(200).send(challenge);
-    }
-    return res.sendStatus(403);
-});
-
-// 4. Receive WhatsApp Messages (Meta Cloud API Webhook)
+// 4. Receive WhatsApp Messages (Twilio Webhook)
 app.post('/webhooks/whatsapp', async (req, res) => {
-    // Always ACK immediately - Meta requires a fast 200 response
+    // Always ACK immediately
     res.sendStatus(200);
 
     try {
-        const body = req.body;
+        const Body = req.body.Body;
+        const From = req.body.From; // e.g. "whatsapp:+27848457056"
+        const To = req.body.To;     // e.g. "whatsapp:+14155238886"
+        const MessageSid = req.body.MessageSid;
 
-        if (body.object !== 'whatsapp_business_account') return;
-
-        const change = body.entry?.[0]?.changes?.[0];
-        const value = change?.value;
-
-        // Status updates, read receipts, etc. - ignore
-        if (!value?.messages?.length) return;
-
-        const msg = value.messages[0];
-        const metaInfo = value.metadata;
-
-        // Skip non-text messages (images, audio, etc.) for now
-        if (msg.type !== 'text') return;
-
-        const Body = msg.text?.body || '';
-        const From = msg.from; // digits only, e.g. 27848457056
-        const To = metaInfo.display_phone_number;
-        const MessageSid = msg.id; // wamid.xxx
+        // Ignore status callbacks (no Body) and non-text messages
+        if (!Body || !From || !MessageSid) return;
 
         console.log(`📩 INCOMING: "${Body}" from ${From} (To: ${To}, MsgId: ${MessageSid})`);
         logToFile(`📩 INCOMING WEBHOOK: From: ${From}, To: ${To}, Body: ${Body}, SID: ${MessageSid}`);
