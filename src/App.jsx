@@ -21,6 +21,7 @@ import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Setup from './pages/Setup';
+import Bookings from './pages/Bookings';
 
 // Marketing Website Layout
 const MarketingSite = () => {
@@ -90,7 +91,7 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<Dashboard />} />
-            <Route path="bookings" element={<div className="p-4 text-center py-20 text-gray-400 font-medium">Bookings Management coming in the next update!</div>} />
+            <Route path="bookings" element={<Bookings />} />
             <Route path="clients" element={<Clients />} />
             <Route path="documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
             <Route path="settings" element={<ProfileSettings />} />
