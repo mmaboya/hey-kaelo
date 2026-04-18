@@ -23,6 +23,7 @@ function getSystemInstruction(businessContext = {}) {
     const category = businessContext.category;
     const name = businessContext.name || 'a local business';
     const role = businessContext.role || 'service provider';
+    const knowledgeBase = businessContext.knowledge_base;
     const timeString = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });
 
     const contextHeader = `
@@ -33,7 +34,7 @@ function getSystemInstruction(businessContext = {}) {
 - Category: ${category}
 - Current Time (SAST): ${timeString}
 - Location: South Africa
-
+${knowledgeBase ? `\n[BUSINESS KNOWLEDGE BASE]\n${knowledgeBase}\n` : ''}
 [BEHAVIOR RULES]
 - BE CONCISE: Short WhatsApp-style messages.
 - STAY IN CONTEXT: If a user provides their name, remember the slot you just offered them. Do NOT ask for time/date again if already discussed.
@@ -91,7 +92,7 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
 
         const { data: profileData } = await supabase
             .from('profiles')
-            .select('business_name, role_type, role_category')
+            .select('business_name, role_type, role_category, business_context')
             .eq('id', resolvedBizId)
             .single();
 
@@ -103,7 +104,8 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
     const systemPrompt = getSystemInstruction({
         name: businessName,
         role: profile?.role_type,
-        category: profile?.role_category
+        category: profile?.role_category,
+        knowledge_base: profile?.business_context
     });
 
     // 3. Initialize Model with Static System Instruction
@@ -146,7 +148,7 @@ async function handleIncomingMessage(userPhone, messageText, businessId) {
             const targetDate = dateMatch ? dateMatch[0] : 'tomorrow';
 
             try {
-                const slots = await calendar.generateSlots(targetDate);
+                const slots = await calendar.generateSlots(targetDate, resolvedBizId);
                 const toolResponse = await chat.sendMessage(`(System Tool Output: checkAvailability): Found following slots for ${targetDate}: ${JSON.stringify(slots)}. Please present these to the user or ask for details.`);
                 finalReply = toolResponse.response.text();
             } catch (calErr) {

@@ -240,7 +240,7 @@ async function updateOnboardingState(phone, step, data) {
     // We'll store this in metadata.
 
     // Find existing state first to get ID?
-    const { data: current } = await supabase.from('conversation_states').select('*').eq('phone_number', phone).single();
+    const { data: current } = await supabase.from('conversation_states').select('*').eq('phone_number', phone).maybeSingle();
 
     const metadata = current?.metadata || {};
     metadata.onboarding_active = true;
@@ -258,7 +258,7 @@ async function updateOnboardingState(phone, step, data) {
 }
 
 async function clearOnboardingState(phone) {
-    const { data: current } = await supabase.from('conversation_states').select('*').eq('phone_number', phone).single();
+    const { data: current } = await supabase.from('conversation_states').select('*').eq('phone_number', phone).maybeSingle();
     if (current) {
         const metadata = current.metadata || {};
         delete metadata.onboarding_active;
