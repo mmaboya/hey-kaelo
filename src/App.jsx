@@ -1,13 +1,5 @@
 import React from 'react';
-import Hero from './components/Hero';
-import ProblemSection from './components/ProblemSection';
-import HowItWorks from './components/HowItWorks';
-import FeaturesSection from './components/FeaturesSection';
-import PricingSection from './components/PricingSection';
-import ChatWidget from './components/ChatWidget';
-import WhatsNewSection from './components/WhatsNewSection';
-import WorkstyleGuide from './components/WorkstyleGuide';
-import Navbar from './components/Navbar';
+import Landing from './pages/Landing';
 import HelpDrawer from './components/HelpDrawer';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -22,26 +14,6 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Setup from './pages/Setup';
 
-// Marketing Website Layout
-const MarketingSite = () => {
-  const [viewMode, setViewMode] = React.useState('business'); // 'business' | 'customer'
-
-  return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <main>
-        <Hero viewMode={viewMode} setViewMode={setViewMode} />
-        <ProblemSection />
-        <WorkstyleGuide />
-        <WhatsNewSection />
-        <HowItWorks />
-        <FeaturesSection />
-        <PricingSection viewMode={viewMode} />
-      </main>
-      <ChatWidget />
-    </div>
-  );
-};
 
 // ----------------------------------------------------------------------
 // Wrapper Components
@@ -70,7 +42,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           {/* Public Marketing Site */}
-          <Route path="/" element={<MarketingSite />} />
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
